@@ -45,6 +45,25 @@ TAG_FIXUPS = {"S change": "S Change"}
 _FOUR_DIGIT_FUT = re.compile(r"^([A-Za-z]+)\s+(\d{4})$")
 
 
+_MONTHS = {
+    "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
+    "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12,
+}
+
+
+def fut_expiry_date(label: str) -> pd.Timestamp:
+    """Approximate contract-month date ("December 26" -> 2026-12-01), used to sort
+    contract months chronologically (nearest expiry first). Not an exact expiry/notice
+    date, just the delivery month - good enough for ordering."""
+    parts = label.split()
+    if len(parts) != 2 or parts[0].lower() not in _MONTHS or not parts[1].isdigit():
+        return pd.Timestamp.max
+    month = _MONTHS[parts[0].lower()]
+    yy = int(parts[1])
+    year = 2000 + yy if yy < 90 else 1900 + yy
+    return pd.Timestamp(year=year, month=month, day=1)
+
+
 def _normalize_fut_label(label: str) -> str:
     """The legacy database uses a 2-digit contract year ("December 26"); the
     live CFTC report pages render a 4-digit year ("December  2026"). Left
