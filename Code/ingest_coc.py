@@ -22,22 +22,25 @@ import argparse
 import re
 import sys
 from datetime import datetime
-from pathlib import Path
 
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 
+from coc_health import (  # noqa: E402
+    COLUMNS,
+    DB_DIR,
+    MASTER_CSV,
+    OLD_CSV,
+    health_check,
+    latest_date,
+    load_master,
+)
+
 BASE = "https://www.cftc.gov"
 INDEX_URL = f"{BASE}/MarketReports/CottonOnCall/HistoricalCottonOn-Call/index.htm"
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-DB_DIR = REPO_ROOT / "Database"
-OLD_CSV = DB_DIR / "Old Database.csv"
-MASTER_CSV = DB_DIR / "Cotton_On_Call_Database.csv"
-
-COLUMNS = ["Date", "Fut", "Tag", "Value", "month", "year"]
 TAGS = ["Sales", "S Change", "Purchase", "P Change", "OI", "OI Change"]
 
 
@@ -122,28 +125,6 @@ def rows_to_long(as_of_date: datetime.date, rows: list[tuple]) -> pd.DataFrame:
     return pd.DataFrame.from_records(records, columns=COLUMNS)
 
 
-TAG_FIXUPS = {"S change": "S Change"}
-
-
-def load_master() -> pd.DataFrame:
-    if MASTER_CSV.exists():
-        df = pd.read_csv(MASTER_CSV, parse_dates=False)
-    elif OLD_CSV.exists():
-        df = pd.read_csv(OLD_CSV, parse_dates=False)[COLUMNS]
-    else:
-        return pd.DataFrame(columns=COLUMNS)
-    df["Tag"] = df["Tag"].replace(TAG_FIXUPS)
-    # legacy rows in Old Database.csv have thousands-separator commas baked into Value as text
-    df["Value"] = pd.to_numeric(df["Value"].astype(str).str.replace(",", "", regex=False), errors="coerce").fillna(0).astype(int)
-    return df
-
-
-def latest_date(df: pd.DataFrame):
-    if df.empty:
-        return None
-    return pd.to_datetime(df["Date"], format="%m/%d/%Y").max().date()
-
-
 def update(rebuild: bool = False) -> pd.DataFrame:
     master = pd.DataFrame(columns=COLUMNS) if rebuild else load_master()
     last_date = None if rebuild else latest_date(master)
@@ -176,42 +157,6 @@ def update(rebuild: bool = False) -> pd.DataFrame:
         master = master.sort_values(["year", "month", "Date"]).reset_index(drop=True)
 
     return master
-
-
-def health_check(df: pd.DataFrame) -> list[str]:
-    """Return a list of human-readable data-quality issues, empty if clean."""
-    issues = []
-    if df.empty:
-        return ["Master database is empty."]
-
-    dates = sorted(pd.to_datetime(df["Date"].unique(), format="%m/%d/%Y"))
-    last = dates[-1].date()
-    stale_days = (datetime.today().date() - last).days
-    if stale_days > 10:
-        issues.append(f"Latest as-of date is {last} - {stale_days} days old (report is weekly, expect <=10).")
-
-    gaps = []
-    for prev, cur in zip(dates, dates[1:]):
-        gap = (cur - prev).days
-        if gap > 10:
-            gaps.append(f"{prev.date()} -> {cur.date()} ({gap}d)")
-    if gaps:
-        issues.append(f"{len(gaps)} gap(s) wider than 10 days: " + "; ".join(gaps[:5]) + (" ..." if len(gaps) > 5 else ""))
-
-    dupes = df.duplicated(subset=["Date", "Fut", "Tag"]).sum()
-    if dupes:
-        issues.append(f"{dupes} duplicate (Date, Fut, Tag) row(s).")
-
-    non_numeric = pd.to_numeric(df["Value"].astype(str).str.replace(",", "", regex=False), errors="coerce").isna().sum()
-    if non_numeric:
-        issues.append(f"{non_numeric} row(s) with non-numeric Value.")
-
-    dates_with_totals = set(pd.to_datetime(df.loc[df["Fut"] == "Totals", "Date"], format="%m/%d/%Y"))
-    missing_totals = [d.date() for d in dates if d not in dates_with_totals]
-    if missing_totals:
-        issues.append(f"{len(missing_totals)} report date(s) missing a Totals row: {missing_totals[:5]}")
-
-    return issues
 
 
 def main():

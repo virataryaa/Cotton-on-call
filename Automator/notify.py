@@ -13,7 +13,7 @@ import pandas as pd
 
 REPO_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_DIR / "Code"))
-from ingest_coc import health_check, MASTER_CSV  # noqa: E402
+from coc_health import health_check, MASTER_CSV  # noqa: E402
 
 TO_EMAIL = "virat.arya@etgworld.com"
 

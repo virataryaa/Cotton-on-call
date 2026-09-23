@@ -19,7 +19,7 @@ ROLLEX_CT_PATH = Path(
 )
 
 sys.path.insert(0, str(REPO_DIR / "Code"))
-from ingest_coc import health_check  # noqa: E402
+from coc_health import health_check  # noqa: E402
 
 NAVY = "#0a2463"
 TEAL = "#1f8a9c"
