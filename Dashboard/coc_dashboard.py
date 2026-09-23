@@ -67,31 +67,36 @@ p, span, label, div { color: #1a1a2e; }
 .card-desc { color: #5a6688; font-size: 0.85rem; margin-top: -6px; margin-bottom: 10px; }
 
 /* Multiselect: selected pills (navy bg, white text) + open dropdown menu (white bg, dark text) */
-[data-baseweb="tag"] { background-color: #0a2463 !important; }
-[data-baseweb="tag"] span { color: #ffffff !important; }
+span[data-baseweb="tag"],
+span[data-baseweb="tag"] div,
+span[data-baseweb="tag"] span {
+    background-color: #0a2463 !important;
+    color: #ffffff !important;
+    fill: #ffffff !important;
+}
+span[data-baseweb="tag"] svg { fill: #ffffff !important; }
 [data-baseweb="popover"] [data-baseweb="menu"] { background: #ffffff !important; }
 [data-baseweb="popover"] [data-baseweb="menu"] li,
 [data-baseweb="popover"] [data-baseweb="menu"] li * { color: #1a1a2e !important; }
 [data-baseweb="select"] { background: #ffffff !important; }
-[data-baseweb="select"] * { color: #1a1a2e !important; }
+[data-baseweb="select"] > div { background: #ffffff !important; color: #1a1a2e !important; }
+[data-testid="stSidebar"] span[data-baseweb="tag"],
+[data-testid="stSidebar"] span[data-baseweb="tag"] * { color: #ffffff !important; }
+
+/* Small filter-summary text in the sidebar (replaces top KPI cards) */
+.filter-stat { font-size: 12px; color: #5a6688 !important; line-height: 1.7; margin-bottom: 14px; }
+.filter-stat b { color: #0a2463 !important; font-size: 13px; }
 </style>
 """,
     unsafe_allow_html=True,
 )
 
 
-def kpi_row(cards):
-    """cards: list of (label, value, subtext, accent_color)"""
-    html = "<div style='display:flex;gap:12px;margin-bottom:18px;flex-wrap:wrap;'>"
-    for label, value, sub, color in cards:
-        html += f"""
-        <div style='flex:1;min-width:160px;background:#ffffff;
-            border-top:3px solid {color};border-radius:8px;padding:12px 16px;
-            box-shadow:0 1px 3px rgba(10,36,99,0.08);'>
-            <div style='font-size:11px;letter-spacing:0.09em;text-transform:uppercase;color:#7a86a8;'>{label}</div>
-            <div style='font-size:27px;font-weight:700;color:#0a2463;margin-top:2px;'>{value}</div>
-            <div style='font-size:11px;color:#5a6688;margin-top:2px;'>{sub}</div>
-        </div>"""
+def sidebar_stats(rows):
+    """rows: list of (label, value, subtext) - small text, not cards."""
+    html = "<div class='filter-stat'>"
+    for label, value, sub in rows:
+        html += f"{label}: <b>{value}</b>" + (f" <span style='color:#7a86a8;'>({sub})</span>" if sub else "") + "<br>"
     html += "</div>"
     st.markdown(html, unsafe_allow_html=True)
 
@@ -142,26 +147,31 @@ totals_wide = totals.pivot_table(index="DateDT", columns="Tag", values="Value", 
 st.title("Cotton On-Call")
 st.caption("CFTC weekly report — unfixed call cotton sales/purchases and open ICE futures interest, by contract month.")
 
+latest = totals_wide.iloc[-1]
+latest_date = totals_wide.index[-1].date()
+
 # ── SIDEBAR FILTERS ──────────────────────────────────────────────────────────
 min_d, max_d = totals_wide.index.min().date(), totals_wide.index.max().date()
 with st.sidebar:
     st.subheader("Filters")
-    date_range = st.slider("As-of date range", min_value=min_d, max_value=max_d, value=(max(min_d, max_d.replace(year=max_d.year - 3)), max_d))
+    default_start = max(min_d, max_d.replace(year=max_d.year - 3))
+    dc1, dc2 = st.columns(2)
+    start_d = dc1.date_input("From", value=default_start, min_value=min_d, max_value=max_d)
+    end_d = dc2.date_input("To", value=max_d, min_value=min_d, max_value=max_d)
+    date_range = st.slider("Drag to adjust", min_value=min_d, max_value=max_d, value=(start_d, end_d))
     fut_months = sorted(df.loc[df["Fut"] != "Totals", "Fut"].unique(), key=lambda x: (x.split()[-1], x.split()[0]))
     selected_fut = st.multiselect("Contract month(s) (for tab 2)", fut_months)
 
+    st.divider()
+    sidebar_stats([
+        ("As of", latest_date.strftime("%b %d, %Y"), f"{(datetime.today().date() - latest_date).days}d old"),
+        ("Unfixed Sales", f"{latest['Sales']:,.0f}", f"{latest['S Change']:+,.0f} WoW"),
+        ("Unfixed Purchases", f"{latest['Purchase']:,.0f}", f"{latest['P Change']:+,.0f} WoW"),
+        ("Open Interest", f"{latest['OI']:,.0f}", f"{latest['OI Change']:+,.0f} WoW"),
+    ])
+
 mask = (totals_wide.index.date >= date_range[0]) & (totals_wide.index.date <= date_range[1])
 tv = totals_wide.loc[mask]
-
-# ── KPI ROW (latest report) ──────────────────────────────────────────────────
-latest = totals_wide.iloc[-1]
-latest_date = totals_wide.index[-1].date()
-kpi_row([
-    ("As of", latest_date.strftime("%b %d, %Y"), f"{(datetime.today().date() - latest_date).days}d old", TEAL),
-    ("Unfixed Sales", f"{latest['Sales']:,.0f}", f"{latest['S Change']:+,.0f} WoW", GREEN if latest["S Change"] >= 0 else RED),
-    ("Unfixed Purchases", f"{latest['Purchase']:,.0f}", f"{latest['P Change']:+,.0f} WoW", GREEN if latest["P Change"] >= 0 else RED),
-    ("Open Interest", f"{latest['OI']:,.0f}", f"{latest['OI Change']:+,.0f} WoW", AMBER),
-])
 
 tab1, tab2, tab3, tab4 = st.tabs(["Totals Over Time", "By Contract Month", "Price Link (CT Rollex)", "Data Health"])
 
