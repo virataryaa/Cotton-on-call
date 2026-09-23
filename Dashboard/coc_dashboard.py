@@ -21,44 +21,40 @@ ROLLEX_CT_PATH = Path(
 sys.path.insert(0, str(REPO_DIR / "Code"))
 from ingest_coc import health_check  # noqa: E402
 
-TEAL = "#4FB0C8"
-GREEN = "#2dc6a0"
-RED = "#e05c6a"
-AMBER = "#e0a84a"
+NAVY = "#0a2463"
+TEAL = "#1f8a9c"
+GREEN = "#1f9d6f"
+RED = "#c94a4a"
+AMBER = "#c98a1f"
 
 st.set_page_config(page_title="Cotton On-Call", layout="wide")
 
+# Force a strict light theme regardless of the viewer's OS/browser dark-mode
+# setting — CSS below hard-codes colours (no prefers-color-scheme query) and
+# .streamlit/config.toml pins base="light" so Streamlit's own chrome doesn't
+# switch either.
 st.markdown(
     """
 <style>
-[data-testid="stAppViewContainer"], [data-testid="stMain"] {
-    background:
-        radial-gradient(ellipse 70% 60% at 20% 80%, rgba(26,74,90,.50) 0%, transparent 65%),
-        radial-gradient(ellipse 60% 50% at 80% 20%, rgba(42,85,104,.45) 0%, transparent 60%),
-        radial-gradient(ellipse 80% 70% at 50% 30%, rgba(79,176,200,.10) 0%, transparent 55%),
-        #0D1620 !important;
-    background-attachment: fixed;
+[data-testid="stAppViewContainer"], [data-testid="stMain"], .main {
+    background: #fafafa !important;
 }
-[data-testid="stHeader"] {
-    background: rgba(13,22,32,.85) !important;
-    backdrop-filter: saturate(180%) blur(16px);
-    border-bottom: 1px solid rgba(188,212,222,.14);
-}
+[data-testid="stHeader"] { background: #fafafa !important; }
 [data-testid="stSidebar"] {
-    background: rgba(13,22,32,.92) !important;
-    border-right: 1px solid rgba(188,212,222,.14);
+    background: #f0f2f8 !important;
+    border-right: 1px solid #dfe3ee;
 }
-h1, h2, h3, h4, h5, h6 { color: #e8f4f8 !important; }
-p, span, label, div { color: #d6e8ee; }
-[data-testid="stSidebar"] * { color: #d6e8ee !important; }
+h1, h2, h3, h4, h5, h6 { color: #0a2463 !important; }
+p, span, label, div { color: #1a1a2e; }
+[data-testid="stSidebar"] * { color: #1a1a2e !important; }
 .stTabs [data-baseweb="tab"] {
-    background: rgba(255,255,255,0.03);
-    color: #7fa8b8 !important;
+    background: #f0f2f8;
+    color: #4a5578 !important;
     border-radius: 6px 6px 0 0;
 }
-.stTabs [aria-selected="true"] { background: rgba(79,176,200,.18) !important; color: #e8f4f8 !important; }
-.stDataFrame { background: rgba(13,22,32,.5); }
-.card-desc { color: #7fa8b8; font-size: 0.85rem; margin-top: -6px; margin-bottom: 10px; }
+.stTabs [aria-selected="true"] { background: #0a2463 !important; color: #fff !important; }
+.stDataFrame { background: #ffffff; }
+.card-desc { color: #5a6688; font-size: 0.85rem; margin-top: -6px; margin-bottom: 10px; }
 </style>
 """,
     unsafe_allow_html=True,
@@ -70,27 +66,27 @@ def kpi_row(cards):
     html = "<div style='display:flex;gap:12px;margin-bottom:18px;flex-wrap:wrap;'>"
     for label, value, sub, color in cards:
         html += f"""
-        <div style='flex:1;min-width:160px;background:rgba(13,28,42,.75);
+        <div style='flex:1;min-width:160px;background:#ffffff;
             border-top:3px solid {color};border-radius:8px;padding:12px 16px;
-            backdrop-filter:blur(6px);'>
-            <div style='font-size:11px;letter-spacing:0.09em;text-transform:uppercase;color:#5e8fa0;'>{label}</div>
-            <div style='font-size:27px;font-weight:700;color:#e8f4f8;margin-top:2px;'>{value}</div>
-            <div style='font-size:11px;color:#3d6878;margin-top:2px;'>{sub}</div>
+            box-shadow:0 1px 3px rgba(10,36,99,0.08);'>
+            <div style='font-size:11px;letter-spacing:0.09em;text-transform:uppercase;color:#7a86a8;'>{label}</div>
+            <div style='font-size:27px;font-weight:700;color:#0a2463;margin-top:2px;'>{value}</div>
+            <div style='font-size:11px;color:#5a6688;margin-top:2px;'>{sub}</div>
         </div>"""
     html += "</div>"
     st.markdown(html, unsafe_allow_html=True)
 
 
 def chart_layout(fig, **extra):
-    xaxis = dict(gridcolor="rgba(255,255,255,0.06)", color="#7fa8b8")
-    yaxis = dict(gridcolor="rgba(255,255,255,0.06)", color="#7fa8b8")
+    xaxis = dict(gridcolor="rgba(10,36,99,0.08)", color="#4a5578")
+    yaxis = dict(gridcolor="rgba(10,36,99,0.08)", color="#4a5578")
     xaxis.update(extra.pop("xaxis", {}))
     yaxis.update(extra.pop("yaxis", {}))
     fig.update_layout(
-        template="plotly_dark",
+        template="plotly_white",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#d6e8ee"),
+        font=dict(color="#1a1a2e"),
         legend=dict(bgcolor="rgba(0,0,0,0)"),
         xaxis=xaxis,
         yaxis=yaxis,

@@ -2,4 +2,3 @@ __pycache__/
 *.pyc
 Automator/coc_update.log
 Automator/run_log.txt
-.streamlit/
