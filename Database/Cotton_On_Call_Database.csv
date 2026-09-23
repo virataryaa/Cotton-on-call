@@ -29550,10 +29550,10 @@ Date,Fut,Tag,Value,month,year
 1/25/2013,Totals,Purchase,19276,1,2013
 1/25/2013,Totals,P Change,-1570,1,2013
 1/25/2013,Totals,OI Change,12626,1,2013
-1/25/2013,March 13,S Change,"-1,627",1,2013
+1/25/2013,March 13,S Change,-1627,1,2013
 1/25/2013,October 13,S Change,0,1,2013
 1/25/2013,December 13,S Change,-225,1,2013
-1/25/2013,Totals,S Change,"1,172",1,2013
+1/25/2013,Totals,S Change,1172,1,2013
 1/4/2013,March 13,Sales,13915,1,2013
 1/4/2013,March 13,S Change,-2519,1,2013
 1/4/2013,March 13,Purchase,6570,1,2013
@@ -30557,8 +30557,8 @@ Date,Fut,Tag,Value,month,year
 5/3/2013,Totals,Purchase,21592,5,2013
 5/3/2013,Totals,P Change,664,5,2013
 5/3/2013,Totals,OI Change,5767,5,2013
-5/3/2013,July 13,S Change,"-1,200",5,2013
-5/3/2013,Totals,S Change,"4,338",5,2013
+5/3/2013,July 13,S Change,-1200,5,2013
+5/3/2013,Totals,S Change,4338,5,2013
 5/31/2013,July 13,Sales,11063,5,2013
 5/31/2013,July 13,S Change,-2659,5,2013
 5/31/2013,July 13,Purchase,3094,5,2013
@@ -30967,7 +30967,7 @@ Date,Fut,Tag,Value,month,year
 7/19/2013,Totals,Purchase,23516,7,2013
 7/19/2013,Totals,P Change,303,7,2013
 7/19/2013,Totals,OI Change,3594,7,2013
-7/19/2013,December 13,S Change,"-1,817",7,2013
+7/19/2013,December 13,S Change,-1817,7,2013
 7/19/2013,Totals,S Change,-549,7,2013
 7/26/2013,October 13,Sales,25,7,2013
 7/26/2013,October 13,S Change,0,7,2013
@@ -32129,26 +32129,26 @@ Date,Fut,Tag,Value,month,year
 12/20/2013,December 15,S Change,123,12,2013
 12/20/2013,December 15,OI Change,0,12,2013
 12/20/2013,Totals,OI Change,4985,12,2013
-12/20/2013,March 14,Sales,"22,980",12,2013
+12/20/2013,March 14,Sales,22980,12,2013
 12/20/2013,March 14,S Change,-39,12,2013
-12/20/2013,July 14,Sales,"14,627",12,2013
+12/20/2013,July 14,Sales,14627,12,2013
 12/20/2013,July 14,S Change,893,12,2013
-12/20/2013,July 14,Purchase,"1,944",12,2013
+12/20/2013,July 14,Purchase,1944,12,2013
 12/20/2013,July 14,P Change,-2,12,2013
-12/20/2013,December 14,Sales,"3,230",12,2013
+12/20/2013,December 14,Sales,3230,12,2013
 12/20/2013,December 14,S Change,45,12,2013
-12/20/2013,December 15,Purchase,"1,493",12,2013
-12/20/2013,December 14,P Change,"1,412",12,2013
-12/20/2013,March 15,Sales,"1,202",12,2013
+12/20/2013,December 15,Purchase,1493,12,2013
+12/20/2013,December 14,P Change,1412,12,2013
+12/20/2013,March 15,Sales,1202,12,2013
 12/20/2013,March 15,S Change,11,12,2013
 12/20/2013,July 15,Purchase,308,12,2013
 12/20/2013,July 15,P Change,308,12,2013
-12/20/2013,December 14,Purchase,"8,995",12,2013
+12/20/2013,December 14,Purchase,8995,12,2013
 12/20/2013,December 15,P Change,278,12,2013
-12/20/2013,Totals,Sales,"55,330",12,2013
-12/20/2013,Totals,S Change,"1,908",12,2013
-12/20/2013,Totals,Purchase,"21,617",12,2013
-12/20/2013,Totals,P Change,"1,396",12,2013
+12/20/2013,Totals,Sales,55330,12,2013
+12/20/2013,Totals,S Change,1908,12,2013
+12/20/2013,Totals,Purchase,21617,12,2013
+12/20/2013,Totals,P Change,1396,12,2013
 12/27/2013,March 14,Sales,22038,12,2013
 12/27/2013,March 14,Purchase,7036,12,2013
 12/27/2013,March 14,P Change,-605,12,2013
@@ -33118,7 +33118,7 @@ Date,Fut,Tag,Value,month,year
 4/11/2014,March 16,OI Change,0,4,2014
 4/11/2014,December 16,Sales,0,4,2014
 4/11/2014,December 16,S Change,0,4,2014
-4/11/2014,December 15,Purchase,"2,164",4,2014
+4/11/2014,December 15,Purchase,2164,4,2014
 4/11/2014,December 16,P Change,0,4,2014
 4/11/2014,December 16,OI Change,0,4,2014
 4/11/2014,Totals,Sales,67312,4,2014
@@ -33128,7 +33128,7 @@ Date,Fut,Tag,Value,month,year
 4/11/2014,Totals,OI Change,-6648,4,2014
 4/11/2014,May 15,Purchase,2,4,2014
 4/11/2014,May 15,P Change,-15,4,2014
-4/11/2014,July 15,Purchase,"1,512",4,2014
+4/11/2014,July 15,Purchase,1512,4,2014
 4/11/2014,July 15,P Change,96,4,2014
 4/11/2014,October 15,Purchase,485,4,2014
 4/11/2014,October 15,P Change,-66,4,2014
@@ -35338,7 +35338,7 @@ Date,Fut,Tag,Value,month,year
 12/19/2014,Totals,Purchase,23710,12,2014
 12/19/2014,Totals,OI Change,3595,12,2014
 12/19/2014,December 14,P Change,0,12,2014
-12/19/2014,Totals,P Change,"1,050",12,2014
+12/19/2014,Totals,P Change,1050,12,2014
 12/26/2014,March 15,Sales,16921,12,2014
 12/26/2014,March 15,S Change,99,12,2014
 12/26/2014,March 15,Purchase,10170,12,2014
@@ -36007,8 +36007,8 @@ Date,Fut,Tag,Value,month,year
 2/6/2015,Totals,Purchase,24416,2,2015
 2/6/2015,Totals,P Change,-824,2,2015
 2/6/2015,Totals,OI Change,-8754,2,2015
-2/6/2015,March 15,Sales,"6,132",2,2015
-2/6/2015,Totals,Sales,"59,115",2,2015
+2/6/2015,March 15,Sales,6132,2,2015
+2/6/2015,Totals,Sales,59115,2,2015
 3/13/2015,March 15,Sales,0,3,2015
 3/13/2015,March 15,S Change,0,3,2015
 3/13/2015,March 15,Purchase,0,3,2015
@@ -36190,9 +36190,9 @@ Date,Fut,Tag,Value,month,year
 3/27/2015,Totals,Purchase,23935,3,2015
 3/27/2015,Totals,P Change,14,3,2015
 3/27/2015,Totals,OI Change,2424,3,2015
-3/27/2015,May 15,Sales,"9,413",3,2015
+3/27/2015,May 15,Sales,9413,3,2015
 3/27/2015,May 15,S Change,-634,3,2015
-3/27/2015,Totals,Sales,"58,776",3,2015
+3/27/2015,Totals,Sales,58776,3,2015
 3/27/2015,Totals,S Change,423,3,2015
 3/6/2015,March 15,Sales,0,3,2015
 3/6/2015,March 15,S Change,-75,3,2015
@@ -36495,10 +36495,10 @@ Date,Fut,Tag,Value,month,year
 4/24/2015,Totals,Purchase,22982,4,2015
 4/24/2015,Totals,P Change,35,4,2015
 4/24/2015,Totals,OI Change,4501,4,2015
-4/24/2015,July 15,Sales,"18,754",4,2015
+4/24/2015,July 15,Sales,18754,4,2015
 4/24/2015,July 15,S Change,-220,4,2015
-4/24/2015,Totals,Sales,"54,848",4,2015
-4/24/2015,Totals,S Change,"-2,263",4,2015
+4/24/2015,Totals,Sales,54848,4,2015
+4/24/2015,Totals,S Change,-2263,4,2015
 5/1/2015,May 15,Sales,0,5,2015
 5/1/2015,May 15,S Change,0,5,2015
 5/1/2015,May 15,Purchase,0,5,2015
@@ -38424,11 +38424,11 @@ Date,Fut,Tag,Value,month,year
 12/24/2015,Totals,S Change,-219,12,2015
 12/24/2015,Totals,P Change,552,12,2015
 12/24/2015,Totals,OI Change,-5241,12,2015
-12/24/2015,May 16,Sales,"14,732",12,2015
-12/24/2015,July 16,Sales,"14,836",12,2015
-12/24/2015,December 16,Purchase,"5,789",12,2015
-12/24/2015,Totals,Sales,"70,434",12,2015
-12/24/2015,Totals,Purchase,"16,314",12,2015
+12/24/2015,May 16,Sales,14732,12,2015
+12/24/2015,July 16,Sales,14836,12,2015
+12/24/2015,December 16,Purchase,5789,12,2015
+12/24/2015,Totals,Sales,70434,12,2015
+12/24/2015,Totals,Purchase,16314,12,2015
 12/31/2015,March 16,Sales,24808,12,2015
 12/31/2015,March 16,S Change,-1136,12,2015
 12/31/2015,March 16,Purchase,6950,12,2015
@@ -41455,9 +41455,9 @@ Date,Fut,Tag,Value,month,year
 12/23/2016,Totals,Purchase,20800,12,2016
 12/23/2016,Totals,P Change,-1120,12,2016
 12/23/2016,Totals,OI Change,-7462,12,2016
-12/23/2016,May 17,Sales,"25,147",12,2016
-12/23/2016,May 17,S Change,"2,215",12,2016
-12/23/2016,Totals,Sales,"108,950",12,2016
+12/23/2016,May 17,Sales,25147,12,2016
+12/23/2016,May 17,S Change,2215,12,2016
+12/23/2016,Totals,Sales,108950,12,2016
 12/23/2016,Totals,S Change,641,12,2016
 12/30/2016,March 17,Sales,39296,12,2016
 12/30/2016,March 17,S Change,273,12,2016
@@ -61798,7 +61798,7 @@ Date,Fut,Tag,Value,month,year
 3/7/2025,May 26,S Change,33,3,2025
 3/7/2025,July 26,S Change,0,3,2025
 3/7/2025,October 26,S Change,0,3,2025
-3/7/2025,December 26,S Change,,3,2025
+3/7/2025,December 26,S Change,0,3,2025
 3/7/2025,March 27,S Change,-44,3,2025
 3/7/2025,May 27,S Change,0,3,2025
 3/7/2025,July 27,S Change,0,3,2025
@@ -61806,19 +61806,19 @@ Date,Fut,Tag,Value,month,year
 3/7/2025,December 28,S Change,0,3,2025
 3/7/2025,December 29,S Change,0,3,2025
 3/7/2025,Totals,S Change,-2225,3,2025
-3/7/2025,March 25,Purchase,,3,2025
+3/7/2025,March 25,Purchase,0,3,2025
 3/7/2025,May 25,Purchase,24545,3,2025
 3/7/2025,July 25,Purchase,5379,3,2025
-3/7/2025,October 25,Purchase,,3,2025
+3/7/2025,October 25,Purchase,0,3,2025
 3/7/2025,December 25,Purchase,47546,3,2025
 3/7/2025,March 26,Purchase,947,3,2025
 3/7/2025,May 26,Purchase,240,3,2025
-3/7/2025,July 26,Purchase,,3,2025
-3/7/2025,October 26,Purchase,,3,2025
+3/7/2025,July 26,Purchase,0,3,2025
+3/7/2025,October 26,Purchase,0,3,2025
 3/7/2025,December 26,Purchase,8606,3,2025
 3/7/2025,March 27,Purchase,50,3,2025
-3/7/2025,May 27,Purchase,,3,2025
-3/7/2025,July 27,Purchase,,3,2025
+3/7/2025,May 27,Purchase,0,3,2025
+3/7/2025,July 27,Purchase,0,3,2025
 3/7/2025,December 27,Purchase,563,3,2025
 3/7/2025,December 28,Purchase,503,3,2025
 3/7/2025,December 29,Purchase,445,3,2025
@@ -61826,19 +61826,19 @@ Date,Fut,Tag,Value,month,year
 3/7/2025,March 25,P Change,-261,3,2025
 3/7/2025,May 25,P Change,-2142,3,2025
 3/7/2025,July 25,P Change,206,3,2025
-3/7/2025,October 25,P Change,,3,2025
+3/7/2025,October 25,P Change,0,3,2025
 3/7/2025,December 25,P Change,692,3,2025
 3/7/2025,March 26,P Change,211,3,2025
 3/7/2025,May 26,P Change,50,3,2025
-3/7/2025,July 26,P Change,,3,2025
-3/7/2025,October 26,P Change,,3,2025
+3/7/2025,July 26,P Change,0,3,2025
+3/7/2025,October 26,P Change,0,3,2025
 3/7/2025,December 26,P Change,596,3,2025
-3/7/2025,March 27,P Change,,3,2025
-3/7/2025,May 27,P Change,,3,2025
-3/7/2025,July 27,P Change,,3,2025
-3/7/2025,December 27,P Change,,3,2025
-3/7/2025,December 28,P Change,,3,2025
-3/7/2025,December 29,P Change,,3,2025
+3/7/2025,March 27,P Change,0,3,2025
+3/7/2025,May 27,P Change,0,3,2025
+3/7/2025,July 27,P Change,0,3,2025
+3/7/2025,December 27,P Change,0,3,2025
+3/7/2025,December 28,P Change,0,3,2025
+3/7/2025,December 29,P Change,0,3,2025
 3/7/2025,Totals,P Change,-648,3,2025
 3/7/2025,March 25,OI Change,-101,3,2025
 3/7/2025,May 25,OI Change,-13209,3,2025
@@ -61848,14 +61848,14 @@ Date,Fut,Tag,Value,month,year
 3/7/2025,March 26,OI Change,335,3,2025
 3/7/2025,May 26,OI Change,107,3,2025
 3/7/2025,July 26,OI Change,64,3,2025
-3/7/2025,October 26,OI Change,,3,2025
+3/7/2025,October 26,OI Change,0,3,2025
 3/7/2025,December 26,OI Change,475,3,2025
-3/7/2025,March 27,OI Change,,3,2025
-3/7/2025,May 27,OI Change,,3,2025
-3/7/2025,July 27,OI Change,,3,2025
-3/7/2025,December 27,OI Change,,3,2025
-3/7/2025,December 28,OI Change,,3,2025
-3/7/2025,December 29,OI Change,,3,2025
+3/7/2025,March 27,OI Change,0,3,2025
+3/7/2025,May 27,OI Change,0,3,2025
+3/7/2025,July 27,OI Change,0,3,2025
+3/7/2025,December 27,OI Change,0,3,2025
+3/7/2025,December 28,OI Change,0,3,2025
+3/7/2025,December 29,OI Change,0,3,2025
 3/7/2025,Totals,OI Change,-870,3,2025
 4/11/2025,May 25,Sales,5709,4,2025
 4/11/2025,May 25,S Change,-3184,4,2025
