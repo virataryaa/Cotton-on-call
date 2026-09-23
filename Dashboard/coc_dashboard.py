@@ -41,27 +41,14 @@ st.markdown(
     border-right: 1px solid #dfe3ee;
 }
 h1, h2, h3, h4, h5, h6 { color: #0a2463 !important; }
-p, span, label, div { color: #1a1a2e; }
-[data-testid="stSidebar"] * { color: #1a1a2e !important; }
+body, .main { color: #1a1a2e; }
+[data-testid="stSidebar"] { color: #1a1a2e; }
 
-/* Pill / segmented-control tabs */
-.stTabs [data-baseweb="tab-list"] {
-    background: #eef0f6;
-    padding: 4px;
-    border-radius: 999px;
-    gap: 4px;
-}
-.stTabs [data-baseweb="tab"] {
-    background: transparent !important;
-    color: #4a5578 !important;
-    border-radius: 999px !important;
-    padding: 8px 20px !important;
-    font-weight: 600;
-    border: none !important;
-}
-.stTabs [aria-selected="true"] { background: #0a2463 !important; color: #fff !important; }
-.stTabs [data-baseweb="tab-highlight"] { display: none !important; }
-.stTabs [data-baseweb="tab-border"] { display: none !important; }
+/* Streamlit's default tab look, kept as-is on purpose - custom pill styling here kept
+   breaking (child text elements have their own explicit colour that beats an inherited
+   colour on the parent tab, even with !important on the parent), so we no longer fight
+   it with CSS. Only make sure the selected-tab underline/text stay visible on light bg. */
+.stTabs [aria-selected="true"] { color: #0a2463 !important; font-weight: 700; }
 
 .stDataFrame { background: #ffffff; }
 .card-desc { color: #5a6688; font-size: 0.85rem; margin-top: -6px; margin-bottom: 10px; }
