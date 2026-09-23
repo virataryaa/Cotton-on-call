@@ -22,7 +22,7 @@ TEAL = "#1f8a9c"
 GREEN = "#1f9d6f"
 RED = "#c94a4a"
 AMBER = "#c98a1f"
-BLACK = "#1a1a2e"
+GREY = "#8a94a8"
 
 st.set_page_config(page_title="Cotton On-Call", layout="wide")
 
@@ -64,6 +64,14 @@ body, .main { color: #1a1a2e; }
 .stTabs [aria-selected="true"] { background: #0a2463 !important; color: #ffffff !important; }
 .stTabs [data-baseweb="tab-highlight"] { display: none !important; }
 .stTabs [data-baseweb="tab-border"] { display: none !important; }
+
+/* Radio as pill/segmented control too (date-range presets) */
+div[role="radiogroup"] { background: #eef0f6; padding: 4px; border-radius: 999px; gap: 2px; display: inline-flex; flex-wrap: wrap; }
+div[role="radiogroup"] label { background: transparent !important; border-radius: 999px !important; padding: 4px 12px !important; margin: 0 !important; }
+div[role="radiogroup"] label[data-baseweb="radio"] > div:first-child { display: none; }
+div[role="radiogroup"] label div[data-testid="stMarkdownContainer"] p { font-size: 12px !important; color: #5a6688; }
+div[role="radiogroup"] label:has(input:checked) { background: #0a2463 !important; }
+div[role="radiogroup"] label:has(input:checked) div[data-testid="stMarkdownContainer"] p { color: #ffffff !important; font-weight: 600; }
 
 .stDataFrame { background: #ffffff; }
 .card-desc { color: #5a6688; font-size: 0.82rem; margin-top: -6px; margin-bottom: 10px; }
@@ -140,6 +148,31 @@ def corr_annotation(fig, r, label="corr"):
     )
 
 
+def square_scatter(x_series, y_series, xlabel, ylabel, latest_dt):
+    """A strictly-square scatter with a correlation/R² annotation and the
+    latest point highlighted, fixed 420x420 px (not stretched to container)."""
+    both = pd.concat([x_series.rename("x"), y_series.rename("y")], axis=1).dropna()
+    r = both["x"].corr(both["y"]) if len(both) > 2 else float("nan")
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=both["x"], y=both["y"], mode="markers", marker=dict(color=TEAL, size=6, opacity=0.6),
+        name="Weekly", hovertemplate="%{x:,.1f} / %{y:,.1f}<extra></extra>",
+    ))
+    if not both.empty:
+        last = both.iloc[[-1]]
+        fig.add_trace(go.Scatter(
+            x=last["x"], y=last["y"], mode="markers",
+            marker=dict(color=AMBER, size=13, line=dict(color="#fff", width=1.5)),
+            name="Latest", hovertemplate=f"Latest ({latest_dt}): %{{x:,.1f}} / %{{y:,.1f}}<extra></extra>",
+        ))
+    chart_layout(
+        fig, height=420, width=420, showlegend=False,
+        xaxis=dict(title=xlabel, hoverformat=",.1f"), yaxis=dict(title=ylabel, hoverformat=",.1f"),
+    )
+    corr_annotation(fig, r)
+    return fig
+
+
 def smooth(series: pd.Series, window: int) -> pd.Series:
     if window <= 1:
         return series
@@ -158,7 +191,7 @@ def load_rollex_ct_full():
     """Prefer the live desk-machine parquet (freshest); fall back to the repo
     copy the Automator ships, which is what makes this work on Streamlit
     Cloud (no access to the desk machine's filesystem). Keeps all columns so
-    the Price Link tab can offer a leg selector (c1/c2/continuous)."""
+    the price tabs can offer a leg selector (c1/c2/continuous)."""
     path = ROLLEX_CT_LIVE_PATH if ROLLEX_CT_LIVE_PATH.exists() else ROLLEX_CT_SNAPSHOT
     if not path.exists():
         return None
@@ -182,11 +215,17 @@ with st.sidebar:
     st.markdown("<div class='sb-caption'>CFTC weekly report — unfixed cotton sales/purchases and open ICE futures interest.</div>", unsafe_allow_html=True)
 
     st.subheader("Filters")
-    default_start = max(min_d, max_d - timedelta(weeks=52))
-    dc1, dc2 = st.columns(2)
-    start_d = dc1.date_input("From", value=default_start, min_value=min_d, max_value=max_d)
-    end_d = dc2.date_input("To", value=max_d, min_value=min_d, max_value=max_d)
-    date_range = (start_d, end_d)
+    range_choice = st.radio("Range", ["3M", "6M", "12M", "3Y", "All", "Custom"], index=2, horizontal=True, label_visibility="collapsed")
+    preset_days = {"3M": 91, "6M": 182, "12M": 365, "3Y": 365 * 3}
+    if range_choice == "Custom":
+        dc1, dc2 = st.columns(2)
+        start_d = dc1.date_input("From", value=max(min_d, max_d - timedelta(weeks=52)), min_value=min_d, max_value=max_d)
+        end_d = dc2.date_input("To", value=max_d, min_value=min_d, max_value=max_d)
+        date_range = (start_d, end_d)
+    elif range_choice == "All":
+        date_range = (min_d, max_d)
+    else:
+        date_range = (max(min_d, max_d - timedelta(days=preset_days[range_choice])), max_d)
 
     st.divider()
     roll_window = st.selectbox(
@@ -227,27 +266,93 @@ def active_fut_months(show_oct: bool) -> list[str]:
     return sorted(labels, key=lambda l: fut_active_sort_key(l, latest_date))
 
 
-tab1, tab2, tab_heatmap, tab_season, tab3 = st.tabs([
-    "Totals Over Time", "By Contract Month", "Imbalance Heatmap", "Seasonality", "Price Link (CT Rollex)",
+tab1, tab_season, tab2, tab_heatmap, tab3 = st.tabs([
+    "Totals Over Time", "Seasonality", "By Contract Month", "Imbalance Heatmap", "Price Link (CT Rollex)",
 ])
+
+LEG_OPTIONS = {"Rollex (continuous)": "rollex_px", "c1 (front month)": "c1", "c2 (second month)": "c2"}
+if rollex_full is not None:
+    LEG_OPTIONS = {k: v for k, v in LEG_OPTIONS.items() if v in rollex_full.columns}
 
 # ── TAB 1: TOTALS OVER TIME ──────────────────────────────────────────────────
 with tab1:
-    st.markdown("<div class='card-desc'>Sales, purchases and open interest by week.</div>", unsafe_allow_html=True)
+    st.markdown("<div class='card-desc'>Sales, purchases, open interest and price by week.</div>", unsafe_allow_html=True)
+    leg_label_t1 = st.selectbox("Price leg (right axis)", list(LEG_OPTIONS.keys()), key="t1_leg") if rollex_full is not None else None
+
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=tv.index, y=tv["Sales"], name="Unfixed Sales", line=dict(color=RED, width=2)))
     fig.add_trace(go.Scatter(x=tv.index, y=tv["Purchase"], name="Unfixed Purchases", line=dict(color=GREEN, width=2)))
-    fig.add_trace(go.Scatter(x=tv.index, y=tv["OI"], name="Open Interest", line=dict(color="#000000", width=1.6, dash="dot"), yaxis="y2"))
-    chart_layout(fig, height=440, yaxis2=dict(overlaying="y", side="right", gridcolor="rgba(0,0,0,0)", color="#4a5578", title="Open Interest (Right Axis)"))
+    fig.add_trace(go.Scatter(x=tv.index, y=tv["OI"], name="Open Interest", line=dict(color="#000000", width=1.6, dash="dot"), visible="legendonly"))
+    yaxis2 = dict(overlaying="y", side="right", gridcolor="rgba(0,0,0,0)", color="#4a5578")
+    if leg_label_t1 is not None:
+        px = smooth(rollex_full[LEG_OPTIONS[leg_label_t1]].reindex(tv.index), roll_window)
+        fig.add_trace(go.Scatter(x=tv.index, y=px, name=f"CT price ({leg_label_t1})", line=dict(color=AMBER, width=2), yaxis="y2"))
+        yaxis2["title"] = "Price (Right Axis)"
+    chart_layout(fig, height=440, yaxis2=yaxis2)
     st.plotly_chart(fig, width='stretch')
 
     st.markdown("<div class='card-desc'>Week-over-week change.</div>", unsafe_allow_html=True)
     fig2 = go.Figure()
     fig2.add_trace(go.Bar(x=tv.index, y=tv["S Change"], name="S Change", marker_color=RED))
     fig2.add_trace(go.Bar(x=tv.index, y=tv["P Change"], name="P Change", marker_color=GREEN))
-    fig2.add_trace(go.Bar(x=tv.index, y=tv["OI Change"], name="OI Change", marker_color=TEAL))
+    fig2.add_trace(go.Bar(x=tv.index, y=tv["OI Change"], name="OI Change", marker_color=GREY, visible="legendonly"))
     chart_layout(fig2, height=340, barmode="group")
     st.plotly_chart(fig2, width='stretch')
+
+    st.markdown("<div class='card-desc'>Unfixed Sales and Purchases as a % of Open Interest.</div>", unsafe_allow_html=True)
+    fig_ratio = go.Figure()
+    fig_ratio.add_trace(go.Scatter(x=tv.index, y=(tv["Sales"] / tv["OI"] * 100), name="Sales / OI %", line=dict(color=RED, width=2)))
+    fig_ratio.add_trace(go.Scatter(x=tv.index, y=(tv["Purchase"] / tv["OI"] * 100), name="Purchases / OI %", line=dict(color=GREEN, width=2)))
+    chart_layout(fig_ratio, height=320, yaxis=dict(title="%", hoverformat=".1f"))
+    st.plotly_chart(fig_ratio, width='stretch')
+
+# ── TAB: SEASONALITY ─────────────────────────────────────────────────────────
+with tab_season:
+    st.markdown("<div class='card-desc'>Weekly pattern by year. Bands = history range; current year bold, last year red.</div>", unsafe_allow_html=True)
+    c1, c2 = st.columns(2)
+    metric_options = {"Unfixed Sales": "Sales", "Unfixed Purchases": "Purchase", "Open Interest": "OI", "Net (Sales − Purchases)": "__net__"}
+    metric_label = c1.selectbox("Metric", list(metric_options.keys()))
+    metric_key = metric_options[metric_label]
+    fut_group_options = ["All", "December", "March", "May", "July", "October"]
+    fut_group = c2.selectbox("Contract month group", fut_group_options, index=0)
+
+    if fut_group == "All":
+        season_src = totals_wide.copy()
+    else:
+        fsub = df[(df["Fut"] != "Totals") & (df["Fut"].str.startswith(fut_group))]
+        season_src = fsub.pivot_table(index="DateDT", columns="Tag", values="Value", aggfunc="sum").sort_index()
+
+    season_df = season_src.copy()
+    if metric_key == "__net__":
+        season_df["__net__"] = season_df.get("Sales", 0) - season_df.get("Purchase", 0)
+    season_df[metric_key] = smooth(season_df[metric_key], roll_window)
+    season_df["woy"] = season_df.index.isocalendar().week.astype(int)
+    season_df["yr"] = season_df.index.year
+
+    band = season_df.groupby("woy")[metric_key].agg(
+        lo="min", p10=lambda s: s.quantile(0.10), p25=lambda s: s.quantile(0.25),
+        avg="mean", p75=lambda s: s.quantile(0.75), p90=lambda s: s.quantile(0.90), hi="max",
+    ).sort_index()
+
+    current_year = season_df["yr"].max()
+    last_year = current_year - 1
+
+    fig_season = go.Figure()
+    # nested bands, widest/lightest first so inner bands draw on top
+    band_pairs = [("lo", "hi", "rgba(31,138,156,0.08)", "Min–Max"), ("p10", "p90", "rgba(31,138,156,0.16)", "10th–90th pct"), ("p25", "p75", "rgba(31,138,156,0.28)", "25th–75th pct")]
+    for lo_col, hi_col, color, name in band_pairs:
+        fig_season.add_trace(go.Scatter(x=band.index, y=band[hi_col], line=dict(width=0), showlegend=False, hoverinfo="skip"))
+        fig_season.add_trace(go.Scatter(x=band.index, y=band[lo_col], fill="tonexty", fillcolor=color, line=dict(width=0), name=name))
+    fig_season.add_trace(go.Scatter(x=band.index, y=band["avg"], mode="lines", name="Average", line=dict(color="#4a5578", width=1.5, dash="dot")))
+
+    for yr, color, width, dash in [(last_year, RED, 2, None), (current_year, NAVY, 3, None)]:
+        grp = season_df[season_df["yr"] == yr].sort_values("woy")
+        if grp.empty:
+            continue
+        fig_season.add_trace(go.Scatter(x=grp["woy"], y=grp[metric_key], mode="lines", name=str(yr), line=dict(color=color, width=width, dash=dash)))
+
+    chart_layout(fig_season, height=460, xaxis=dict(title="Week of year", hoverformat=".0f"), yaxis=dict(title=metric_label))
+    st.plotly_chart(fig_season, width='stretch')
 
 # ── TAB 2: BY CONTRACT MONTH ─────────────────────────────────────────────────
 with tab2:
@@ -309,54 +414,20 @@ with tab_heatmap:
         chart_layout(fig_hm, height=max(320, 26 * len(net.index)))
         st.plotly_chart(fig_hm, width='stretch')
 
-# ── TAB: SEASONALITY ─────────────────────────────────────────────────────────
-with tab_season:
-    st.markdown("<div class='card-desc'>Each year by week. Band = 25th–75th pct history; bold = current year.</div>", unsafe_allow_html=True)
-    metric_options = {"Unfixed Sales": "Sales", "Unfixed Purchases": "Purchase", "Open Interest": "OI", "Net (Sales − Purchases)": "__net__"}
-    metric_label = st.selectbox("Metric", list(metric_options.keys()))
-    metric_key = metric_options[metric_label]
-
-    season_df = totals_wide.copy()
-    if metric_key == "__net__":
-        season_df["__net__"] = season_df["Sales"] - season_df["Purchase"]
-    season_df[metric_key] = smooth(season_df[metric_key], roll_window)
-    season_df["woy"] = season_df.index.isocalendar().week.astype(int)
-    season_df["yr"] = season_df.index.year
-
-    band = season_df.groupby("woy")[metric_key].agg(p25=lambda s: s.quantile(0.25), p75=lambda s: s.quantile(0.75))
-    current_year = season_df["yr"].max()
-
-    fig_season = go.Figure()
-    fig_season.add_trace(go.Scatter(x=band.index, y=band["p75"], line=dict(width=0), showlegend=False, hoverinfo="skip"))
-    fig_season.add_trace(go.Scatter(x=band.index, y=band["p25"], fill="tonexty", fillcolor="rgba(31,138,156,0.15)",
-                                     line=dict(width=0), name="25th–75th pct"))
-    for yr, grp in season_df.groupby("yr"):
-        is_current = bool(yr == current_year)
-        grp = grp.sort_values("woy")
-        fig_season.add_trace(go.Scatter(
-            x=grp["woy"], y=grp[metric_key], mode="lines", name=str(yr),
-            line=dict(color=NAVY if is_current else "#c7cfe0", width=3 if is_current else 1),
-            opacity=1 if is_current else 0.55, showlegend=is_current,
-        ))
-    chart_layout(fig_season, height=440, xaxis=dict(title="Week of year", hoverformat=".0f"), yaxis=dict(title=metric_label))
-    st.plotly_chart(fig_season, width='stretch')
-
 # ── TAB 3: PRICE LINK (CT ROLLEX) ────────────────────────────────────────────
 with tab3:
     st.markdown("<div class='card-desc'>On-Call totals vs. CT price.</div>", unsafe_allow_html=True)
     if rollex_full is None:
         st.info("CT price data not available in this environment yet.")
     else:
-        leg_options = {"Rollex (continuous)": "rollex_px", "c1 (front month)": "c1", "c2 (second month)": "c2"}
-        leg_options = {k: v for k, v in leg_options.items() if v in rollex_full.columns}
         metric_choices = {"Sales": ("Sales", "S Change"), "Purchases": ("Purchase", "P Change"), "Open Interest": ("OI", "OI Change")}
 
         c1, c2 = st.columns(2)
-        leg_label = c1.selectbox("Price leg", list(leg_options.keys()))
+        leg_label = c1.selectbox("Price leg", list(LEG_OPTIONS.keys()), key="t3_leg")
         metric_label2 = c2.selectbox("Correlate with", list(metric_choices.keys()), index=2)
         level_col, change_col = metric_choices[metric_label2]
 
-        rollex = rollex_full[[leg_options[leg_label]]].rename(columns={leg_options[leg_label]: "CT"})
+        rollex = rollex_full[[LEG_OPTIONS[leg_label]]].rename(columns={LEG_OPTIONS[leg_label]: "CT"})
         merged = tv.join(rollex, how="inner")
         merged["CT"] = smooth(merged["CT"], roll_window)
         merged["px_change"] = merged["CT"].diff()
@@ -367,43 +438,17 @@ with tab3:
         chart_layout(fig5, height=400, yaxis2=dict(overlaying="y", side="right", gridcolor="rgba(0,0,0,0)", color="#4a5578", title=f"{metric_label2} Change (Right Axis)"))
         st.plotly_chart(fig5, width='stretch')
 
-        st.markdown(f"<div class='card-desc'>Price level vs. {metric_label2} level, and weekly price change vs. weekly {metric_label2} change.</div>", unsafe_allow_html=True)
-        col_a, col_b = st.columns(2)
+        st.markdown("<div class='card-desc'>Price vs. On-Call metrics, level and weekly change. All plots square.</div>", unsafe_allow_html=True)
+        r1c1, r1c2 = st.columns(2)
+        with r1c1:
+            st.plotly_chart(square_scatter(merged["CT"], merged[level_col], "Price level", f"{metric_label2} level", latest_date))
+        with r1c2:
+            st.plotly_chart(square_scatter(merged["px_change"], merged[change_col], "Price change", f"{metric_label2} change", latest_date))
 
-        with col_a:
-            lvl = merged.dropna(subset=["CT", level_col])
-            r_lvl = lvl["CT"].corr(lvl[level_col]) if len(lvl) > 2 else float("nan")
-            fig_lvl = go.Figure()
-            fig_lvl.add_trace(go.Scatter(
-                x=lvl[level_col], y=lvl["CT"], mode="markers", marker=dict(color=TEAL, size=6, opacity=0.6),
-                name="Weekly", hovertemplate="%{x:,.1f} / %{y:.1f}<extra></extra>",
-            ))
-            if not lvl.empty:
-                last = lvl.iloc[[-1]]
-                fig_lvl.add_trace(go.Scatter(
-                    x=last[level_col], y=last["CT"], mode="markers", marker=dict(color=AMBER, size=13, line=dict(color="#fff", width=1.5)),
-                    name="Latest", hovertemplate=f"Latest ({latest_date}): %{{x:,.1f}} / %{{y:.1f}}<extra></extra>",
-                ))
-            chart_layout(fig_lvl, height=420, xaxis=dict(title=f"{metric_label2} level", hoverformat=",.1f"), yaxis=dict(title="Price level"), showlegend=False)
-            corr_annotation(fig_lvl, r_lvl)
-            st.plotly_chart(fig_lvl, width='stretch')
-
-        with col_b:
-            chg = merged.dropna(subset=["px_change", change_col])
-            r_chg = chg["px_change"].corr(chg[change_col]) if len(chg) > 2 else float("nan")
-            fig_chg = go.Figure()
-            fig_chg.add_trace(go.Scatter(
-                x=chg[change_col], y=chg["px_change"], mode="markers", marker=dict(color=TEAL, size=6, opacity=0.6),
-                name="Weekly", hovertemplate="%{x:,.1f} / %{y:.1f}<extra></extra>",
-            ))
-            if not chg.empty:
-                last = chg.iloc[[-1]]
-                fig_chg.add_trace(go.Scatter(
-                    x=last[change_col], y=last["px_change"], mode="markers", marker=dict(color=AMBER, size=13, line=dict(color="#fff", width=1.5)),
-                    name="Latest", hovertemplate=f"Latest ({latest_date}): %{{x:,.1f}} / %{{y:.1f}}<extra></extra>",
-                ))
-            chart_layout(fig_chg, height=420, xaxis=dict(title=f"{metric_label2} change", hoverformat=",.1f"), yaxis=dict(title="Price change"), showlegend=False)
-            corr_annotation(fig_chg, r_chg)
-            st.plotly_chart(fig_chg, width='stretch')
+        r2c1, r2c2 = st.columns(2)
+        with r2c1:
+            st.plotly_chart(square_scatter(tv["Sales"], tv["Purchase"], "Unfixed Sales level", "Unfixed Purchases level", latest_date))
+        with r2c2:
+            st.plotly_chart(square_scatter(tv["S Change"], tv["P Change"], "Unfixed Sales change", "Unfixed Purchases change", latest_date))
 
         st.caption("Weekly change measured Friday-as-of-date to Friday-as-of-date.")

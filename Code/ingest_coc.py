@@ -45,6 +45,10 @@ from coc_health import (  # noqa: E402
 
 BASE = "https://www.cftc.gov"
 INDEX_URL = f"{BASE}/MarketReports/CottonOnCall/HistoricalCottonOn-Call/index.htm"
+# The newest report is published here FIRST, then archived into the historical index
+# above sometime later (often not until the following week). Checking this page too
+# means a Friday-morning ingest run doesn't have to wait for the archive to catch up.
+CURRENT_URL = f"{BASE}/MarketReports/CottonOnCall/index.htm"
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
 TAGS = ["Sales", "S Change", "Purchase", "P Change", "OI", "OI Change"]
@@ -238,9 +242,20 @@ def update(rebuild: bool = False) -> pd.DataFrame:
 
     master = load_master()
     last_date = latest_date(master)
+    new_frames = []
+
+    # Check the current-report page first - it carries the newest report before the
+    # historical archive catches up, sometimes by several days.
+    try:
+        as_of_date, rows = parse_report(CURRENT_URL)
+        if rows and (last_date is None or as_of_date > last_date):
+            print(f"  + current report -> as of {as_of_date} ({len(rows)} futures)")
+            new_frames.append(rows_to_long(as_of_date, rows))
+            last_date = as_of_date
+    except Exception as exc:  # noqa: BLE001
+        print(f"  ! skipped {CURRENT_URL}: {exc}", file=sys.stderr)
 
     reports = list_reports()
-    new_frames = []
     for report in reports:
         if report["release_date"] is None:
             continue
