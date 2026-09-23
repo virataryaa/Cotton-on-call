@@ -64,6 +64,17 @@ def fut_expiry_date(label: str) -> pd.Timestamp:
     return pd.Timestamp(year=year, month=month, day=1)
 
 
+def fut_active_sort_key(label: str, as_of):
+    """Sort key that puts still-active contract months first (nearest expiry
+    first among those), then already-expired ones after (most recently expired
+    first). `as_of` is the reference date (usually the latest report date)."""
+    d = fut_expiry_date(label)
+    ref = pd.Timestamp(as_of)
+    if d >= ref:
+        return (0, d.value)
+    return (1, -d.value)
+
+
 def _normalize_fut_label(label: str) -> str:
     """The legacy database uses a 2-digit contract year ("December 26"); the
     live CFTC report pages render a 4-digit year ("December  2026"). Left

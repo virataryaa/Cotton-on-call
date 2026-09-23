@@ -15,7 +15,7 @@ DB_DIR = REPO_DIR / "Database"
 MASTER_CSV = DB_DIR / "Cotton_On_Call_Database.csv"
 
 sys.path.insert(0, str(REPO_DIR / "Code"))
-from coc_health import ROLLEX_CT_LIVE_PATH, ROLLEX_CT_SNAPSHOT, fut_expiry_date, health_check  # noqa: E402
+from coc_health import ROLLEX_CT_LIVE_PATH, ROLLEX_CT_SNAPSHOT, fut_active_sort_key  # noqa: E402
 
 NAVY = "#0a2463"
 TEAL = "#1f8a9c"
@@ -107,6 +107,12 @@ def chart_layout(fig, **extra):
     return fig
 
 
+def smooth(series: pd.Series, window: int) -> pd.Series:
+    if window <= 1:
+        return series
+    return series.rolling(window, min_periods=1).mean()
+
+
 @st.cache_data(ttl=600)
 def load_master() -> pd.DataFrame:
     df = pd.read_csv(MASTER_CSV)
@@ -115,16 +121,17 @@ def load_master() -> pd.DataFrame:
 
 
 @st.cache_data(ttl=600)
-def load_rollex_ct():
+def load_rollex_ct_full():
     """Prefer the live desk-machine parquet (freshest); fall back to the repo
     copy the Automator ships, which is what makes this work on Streamlit
-    Cloud (no access to the desk machine's filesystem)."""
+    Cloud (no access to the desk machine's filesystem). Keeps all columns so
+    the Price Link tab can offer a leg selector (c1/c2/continuous)."""
     path = ROLLEX_CT_LIVE_PATH if ROLLEX_CT_LIVE_PATH.exists() else ROLLEX_CT_SNAPSHOT
     if not path.exists():
         return None
-    rdf = pd.read_parquet(path, columns=["rollex_px"])
+    rdf = pd.read_parquet(path)
     rdf.index = pd.to_datetime(rdf.index)
-    return rdf.rename(columns={"rollex_px": "CT"})
+    return rdf
 
 
 df = load_master()
@@ -146,8 +153,16 @@ with st.sidebar:
     start_d = dc1.date_input("From", value=default_start, min_value=min_d, max_value=max_d)
     end_d = dc2.date_input("To", value=max_d, min_value=min_d, max_value=max_d)
     date_range = st.slider("Drag to adjust", min_value=min_d, max_value=max_d, value=(start_d, end_d))
-    fut_months = sorted(df.loc[df["Fut"] != "Totals", "Fut"].unique(), key=fut_expiry_date)
-    selected_fut = st.multiselect("Contract month(s) (for tab 2)", fut_months)
+
+    st.divider()
+    roll_window = st.selectbox(
+        "Rolling average",
+        options=[1, 4, 8, 13, 26],
+        index=0,
+        format_func=lambda w: "Raw (no smoothing)" if w == 1 else f"{w}-week rolling avg",
+        help="Applies to every chart on this page: price, price change, Sales/Purchase/OI and their changes.",
+    )
+    show_october = st.toggle("Show October contracts", value=False, help="October cotton is thinly traded and mostly zero - off by default to cut clutter.")
 
     st.divider()
     sidebar_stats([
@@ -158,11 +173,24 @@ with st.sidebar:
     ])
 
 mask = (totals_wide.index.date >= date_range[0]) & (totals_wide.index.date <= date_range[1])
-tv = totals_wide.loc[mask]
+tv = totals_wide.loc[mask].apply(lambda col: smooth(col, roll_window))
 
-tab1, tab2, tab_heatmap, tab_season, tab3, tab_expiry, tab4 = st.tabs([
-    "Totals Over Time", "By Contract Month", "Imbalance Heatmap", "Seasonality",
-    "Price Link (CT Rollex)", "Expiry Watch (POC)", "Data Health",
+
+def active_fut_months(show_oct: bool) -> list[str]:
+    """Contract months with non-zero Sales or Purchase in the latest report,
+    October excluded unless show_oct, sorted active (still-trading) months
+    first - nearest expiry first among those - then already-expired months
+    after, most recently expired first."""
+    latest_all = df[df["DateDT"] == totals_wide.index[-1]]
+    snap = latest_all[latest_all["Fut"] != "Totals"].pivot_table(index="Fut", columns="Tag", values="Value", aggfunc="last")
+    labels = snap[(snap["Sales"] > 0) | (snap["Purchase"] > 0)].index.tolist()
+    if not show_oct:
+        labels = [l for l in labels if not l.startswith("October")]
+    return sorted(labels, key=lambda l: fut_active_sort_key(l, latest_date))
+
+
+tab1, tab2, tab_heatmap, tab_season, tab3 = st.tabs([
+    "Totals Over Time", "By Contract Month", "Imbalance Heatmap", "Seasonality", "Price Link (CT Rollex)",
 ])
 
 # ── TAB 1: TOTALS OVER TIME ──────────────────────────────────────────────────
@@ -185,11 +213,18 @@ with tab1:
 
 # ── TAB 2: BY CONTRACT MONTH ─────────────────────────────────────────────────
 with tab2:
-    st.markdown("<div class='card-desc'>Latest report snapshot, broken out by ICE futures contract month - nearest expiry first.</div>", unsafe_allow_html=True)
+    st.markdown(
+        "<div class='card-desc'>Latest report snapshot, broken out by ICE futures contract month. "
+        "Active months first (nearest expiry first), then already-expired months. "
+        "Months with zero Sales and Purchase are hidden.</div>",
+        unsafe_allow_html=True,
+    )
+    fut_months = active_fut_months(show_october)
+    selected_fut = st.multiselect("Contract month(s) - history below", fut_months)
+
     latest_all = df[df["DateDT"] == totals_wide.index[-1]]
     latest_by_fut = latest_all[latest_all["Fut"] != "Totals"].pivot_table(index="Fut", columns="Tag", values="Value", aggfunc="last")
-    latest_by_fut = latest_by_fut.loc[(latest_by_fut[["Sales", "Purchase", "OI"]].sum(axis=1) > 0)]
-    latest_by_fut = latest_by_fut.loc[sorted(latest_by_fut.index, key=fut_expiry_date)]
+    latest_by_fut = latest_by_fut.loc[fut_months]
 
     fig3 = go.Figure()
     fig3.add_trace(go.Bar(x=latest_by_fut.index, y=latest_by_fut["Sales"], name="Unfixed Sales", marker_color=RED))
@@ -204,7 +239,7 @@ with tab2:
         fig4 = go.Figure()
         for fm in selected_fut:
             sub = fw[fw["Fut"] == fm].sort_values("DateDT")
-            fig4.add_trace(go.Scatter(x=sub["DateDT"], y=sub["OI"], name=f"{fm} OI", mode="lines"))
+            fig4.add_trace(go.Scatter(x=sub["DateDT"], y=smooth(sub["OI"], roll_window), name=f"{fm} OI", mode="lines"))
         chart_layout(fig4, height=360)
         st.plotly_chart(fig4, width='stretch')
 
@@ -219,11 +254,14 @@ with tab_heatmap:
         unsafe_allow_html=True,
     )
     fsub = df[(df["Fut"] != "Totals") & (df["DateDT"].dt.date >= date_range[0]) & (df["DateDT"].dt.date <= date_range[1])]
+    if not show_october:
+        fsub = fsub[~fsub["Fut"].str.startswith("October")]
     sales_p = fsub[fsub["Tag"] == "Sales"].pivot_table(index="Fut", columns="DateDT", values="Value", aggfunc="last")
     purch_p = fsub[fsub["Tag"] == "Purchase"].pivot_table(index="Fut", columns="DateDT", values="Value", aggfunc="last")
     net = sales_p.subtract(purch_p, fill_value=0)
+    net = net.apply(lambda row: smooth(row, roll_window), axis=1)
     active_futs = [f for f in net.index if net.loc[f].abs().sum() > 0]
-    active_futs = sorted(active_futs, key=fut_expiry_date, reverse=True)  # nearest expiry at bottom, reads top-down like a curve chain
+    active_futs = sorted(active_futs, key=lambda l: fut_active_sort_key(l, latest_date), reverse=True)  # nearest expiry at bottom
     net = net.loc[active_futs]
 
     if net.empty:
@@ -253,6 +291,7 @@ with tab_season:
     season_df = totals_wide.copy()
     if metric_key == "__net__":
         season_df["__net__"] = season_df["Sales"] - season_df["Purchase"]
+    season_df[metric_key] = smooth(season_df[metric_key], roll_window)
     season_df["woy"] = season_df.index.isocalendar().week.astype(int)
     season_df["yr"] = season_df.index.year
 
@@ -277,88 +316,37 @@ with tab_season:
 # ── TAB 3: PRICE LINK (CT ROLLEX) ────────────────────────────────────────────
 with tab3:
     st.markdown(
-        "<div class='card-desc'>Links weekly On-Call totals to the CT continuous roll-adjusted price "
+        "<div class='card-desc'>Links weekly On-Call totals to a CT price leg "
         "(<code>rollex_CT.parquet</code>, refreshed daily by the Rollex pipeline) to see whether on-call "
         "positioning changes lead, lag, or track price moves.</div>",
         unsafe_allow_html=True,
     )
-    rollex = load_rollex_ct()
-    if rollex is None:
+    rollex_full = load_rollex_ct_full()
+    if rollex_full is None:
         st.info("CT Rollex price data isn't available in this environment yet — it ships as a snapshot refreshed by the Automator on the desk machine.")
     else:
+        leg_options = {"Rollex (continuous)": "rollex_px", "c1 (front month)": "c1", "c2 (second month)": "c2"}
+        leg_options = {k: v for k, v in leg_options.items() if v in rollex_full.columns}
+        leg_label = st.selectbox("Price leg", list(leg_options.keys()))
+        rollex = rollex_full[[leg_options[leg_label]]].rename(columns={leg_options[leg_label]: "CT"})
+
         merged = tv.join(rollex, how="inner")
+        merged["CT"] = smooth(merged["CT"], roll_window)
         merged["px_change"] = merged["CT"].diff()
         merged = merged.dropna(subset=["px_change"])
 
         fig5 = go.Figure()
-        fig5.add_trace(go.Scatter(x=merged.index, y=merged["CT"], name="CT price (rollex_px)", line=dict(color=AMBER, width=2)))
+        fig5.add_trace(go.Scatter(x=merged.index, y=merged["CT"], name=f"CT price ({leg_label})", line=dict(color=AMBER, width=2)))
         fig5.add_trace(go.Bar(x=merged.index, y=merged["OI Change"], name="OI Change (On-Call)", marker_color=TEAL, yaxis="y2", opacity=0.6))
         chart_layout(fig5, height=400, yaxis2=dict(overlaying="y", side="right", gridcolor="rgba(0,0,0,0)", color="#4a5578", title="OI Change"))
         st.plotly_chart(fig5, width='stretch')
 
-        corr_cols = st.columns(3)
-        for col, tag, label in zip(corr_cols, ["S Change", "P Change", "OI Change"], ["Sales chg", "Purchases chg", "OI chg"]):
-            r = merged["px_change"].corr(merged[tag])
-            col.markdown(
-                f"<div style='background:#ffffff;border-radius:8px;padding:10px 14px;"
-                f"box-shadow:0 1px 3px rgba(10,36,99,0.08);'>"
-                f"<div style='font-size:11px;color:#7a86a8;text-transform:uppercase;'>corr(price chg, {label})</div>"
-                f"<div style='font-size:22px;font-weight:700;color:#0a2463;'>{r:+.2f}</div></div>",
-                unsafe_allow_html=True,
-            )
-
-        fig6 = go.Figure()
-        fig6.add_trace(go.Scatter(x=merged["OI Change"], y=merged["px_change"], mode="markers", marker=dict(color=TEAL, size=7, opacity=0.7)))
-        chart_layout(fig6, height=340, xaxis=dict(title="Weekly OI Change (On-Call)"), yaxis=dict(title="Weekly CT price change"))
-        st.plotly_chart(fig6, width='stretch')
+        st.markdown("<div class='card-desc'>Weekly OI Change vs. weekly price change.</div>", unsafe_allow_html=True)
+        sq_l, sq_mid, sq_r = st.columns([1, 2, 1])
+        with sq_mid:
+            fig6 = go.Figure()
+            fig6.add_trace(go.Scatter(x=merged["OI Change"], y=merged["px_change"], mode="markers", marker=dict(color=TEAL, size=7, opacity=0.7)))
+            chart_layout(fig6, height=480, xaxis=dict(title="Weekly OI Change (On-Call)"), yaxis=dict(title="Weekly CT price change"))
+            fig6.update_layout(width=480)
+            st.plotly_chart(fig6)
         st.caption("Weekly change measured Friday-as-of-date to Friday-as-of-date (the report's own weekly cadence).")
-
-# ── TAB: EXPIRY WATCH (proof of concept) ─────────────────────────────────────
-with tab_expiry:
-    st.markdown(
-        "<div class='card-desc'>Proof of concept: contract months nearest expiry, ranked by how large their "
-        "unfixed (Sales − Purchases) imbalance is relative to Open Interest. Large residual imbalance close to "
-        "expiry is the trading idea from earlier — it has to get fixed one way or another, which can mean forced "
-        "futures buying or selling as the month rolls off. Expiry date shown is the contract month itself "
-        "(1st of month), not the real notice/expiry day - a rough proxy, not exact.</div>",
-        unsafe_allow_html=True,
-    )
-    n_months = st.slider("How many nearest-expiry months to watch", 2, 10, 6)
-
-    latest_all = df[df["DateDT"] == totals_wide.index[-1]]
-    snap = latest_all[latest_all["Fut"] != "Totals"].pivot_table(index="Fut", columns="Tag", values="Value", aggfunc="last")
-    snap = snap.loc[(snap[["Sales", "Purchase", "OI"]].sum(axis=1) > 0)]
-    snap = snap.loc[[f for f in snap.index if fut_expiry_date(f) >= pd.Timestamp(latest_date)]]
-    snap = snap.loc[sorted(snap.index, key=fut_expiry_date)].head(n_months)
-
-    watch = pd.DataFrame({
-        "Contract month": snap.index,
-        "~Days to expiry": [(fut_expiry_date(f) - pd.Timestamp(latest_date)).days for f in snap.index],
-        "Sales": snap["Sales"].values,
-        "Purchase": snap["Purchase"].values,
-        "OI": snap["OI"].values,
-        "Net (Sales - Purch)": (snap["Sales"] - snap["Purchase"]).values,
-    })
-    watch["Imbalance % of OI"] = (watch["Net (Sales - Purch)"] / watch["OI"].replace(0, pd.NA) * 100).round(1)
-    watch["Flag"] = watch["Imbalance % of OI"].abs().apply(lambda x: "High" if pd.notna(x) and x >= 30 else "")
-
-    st.dataframe(
-        watch.set_index("Contract month").style
-            .format({"Sales": "{:,.0f}", "Purchase": "{:,.0f}", "OI": "{:,.0f}",
-                      "Net (Sales - Purch)": "{:+,.0f}", "Imbalance % of OI": "{:+.1f}%"})
-            .apply(lambda s: ["background-color: rgba(233,90,90,0.12)" if v == "High" else "" for v in watch["Flag"]], subset=["Flag"]),
-        width='stretch',
-    )
-    st.caption("\"High\" flag = |net imbalance| >= 30% of that month's Open Interest. Threshold is a starting guess, not a backtested number - tune it once there's a view on what's actually predictive.")
-
-# ── TAB 4: DATA HEALTH ───────────────────────────────────────────────────────
-with tab4:
-    st.markdown("<div class='card-desc'>Sanity checks on the master database — freshness, gaps, duplicates, completeness.</div>", unsafe_allow_html=True)
-    issues = health_check(df)
-    if not issues:
-        st.markdown(f"<div style='color:{GREEN};font-weight:600;'>No issues found.</div>", unsafe_allow_html=True)
-    else:
-        for issue in issues:
-            st.markdown(f"<div style='color:{AMBER};padding:4px 0;'>&#9888; {issue}</div>", unsafe_allow_html=True)
-
-    st.caption(f"{len(df):,} rows · {totals_wide.shape[0]:,} report dates · {totals_wide.index.min().strftime('%Y-%m-%d')} to {totals_wide.index.max().strftime('%Y-%m-%d')}")
