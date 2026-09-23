@@ -6,6 +6,7 @@ the Streamlit dashboard without pulling in scraper dependencies.
 
 from __future__ import annotations
 
+import shutil
 from datetime import datetime
 from pathlib import Path
 
@@ -15,6 +16,27 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DB_DIR = REPO_ROOT / "Database"
 OLD_CSV = DB_DIR / "Old Database.csv"
 MASTER_CSV = DB_DIR / "Cotton_On_Call_Database.csv"
+
+# Live source, only reachable from the desk machine (Rollex pipeline refreshes it daily).
+ROLLEX_CT_LIVE_PATH = Path(
+    r"C:\Users\virat.arya\ETG\SoftsDatabase - Documents\Database\Hardmine\LSEG\Rollex\Database\rollex_CT.parquet"
+)
+# Full copy (all columns, full history) shipped in the repo so the Price Link tab also
+# works on Streamlit Cloud, which can't see the desk machine's filesystem, and so the
+# repo carries its own copy of the price history it depends on. Refreshed by the Automator
+# and pushed to GitHub alongside the master database.
+ROLLEX_CT_SNAPSHOT = DB_DIR / "rollex_CT.parquet"
+
+
+def refresh_rollex_ct_snapshot() -> bool:
+    """Copy the full live Rollex CT parquet (all columns, full history) into the repo.
+    Returns True if refreshed, False if the live source isn't reachable (e.g. off the
+    desk machine) - in that case the existing snapshot, if any, is left untouched."""
+    if not ROLLEX_CT_LIVE_PATH.exists():
+        return False
+    DB_DIR.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(ROLLEX_CT_LIVE_PATH, ROLLEX_CT_SNAPSHOT)
+    return True
 
 COLUMNS = ["Date", "Fut", "Tag", "Value", "month", "year"]
 TAG_FIXUPS = {"S change": "S Change"}

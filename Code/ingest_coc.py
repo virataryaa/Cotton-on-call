@@ -35,6 +35,7 @@ from coc_health import (  # noqa: E402
     health_check,
     latest_date,
     load_master,
+    refresh_rollex_ct_snapshot,
 )
 
 BASE = "https://www.cftc.gov"
@@ -170,6 +171,11 @@ def main():
     DB_DIR.mkdir(parents=True, exist_ok=True)
     master.to_csv(MASTER_CSV, index=False)
     print(f"Master database written: {MASTER_CSV} ({len(master)} rows)")
+
+    if refresh_rollex_ct_snapshot():
+        print("CT Rollex price snapshot refreshed for the dashboard.")
+    else:
+        print("CT Rollex live parquet not reachable - snapshot left as-is (expected off the desk machine).")
 
     if master.empty:
         print("Master database is empty after update - treating as a failure.", file=sys.stderr)

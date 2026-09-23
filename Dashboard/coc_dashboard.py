@@ -14,12 +14,8 @@ REPO_DIR = APP_DIR.parent
 DB_DIR = REPO_DIR / "Database"
 MASTER_CSV = DB_DIR / "Cotton_On_Call_Database.csv"
 
-ROLLEX_CT_PATH = Path(
-    r"C:\Users\virat.arya\ETG\SoftsDatabase - Documents\Database\Hardmine\LSEG\Rollex\Database\rollex_CT.parquet"
-)
-
 sys.path.insert(0, str(REPO_DIR / "Code"))
-from coc_health import health_check  # noqa: E402
+from coc_health import ROLLEX_CT_LIVE_PATH, ROLLEX_CT_SNAPSHOT, health_check  # noqa: E402
 
 NAVY = "#0a2463"
 TEAL = "#1f8a9c"
@@ -47,14 +43,37 @@ st.markdown(
 h1, h2, h3, h4, h5, h6 { color: #0a2463 !important; }
 p, span, label, div { color: #1a1a2e; }
 [data-testid="stSidebar"] * { color: #1a1a2e !important; }
+
+/* Pill / segmented-control tabs */
+.stTabs [data-baseweb="tab-list"] {
+    background: #eef0f6;
+    padding: 4px;
+    border-radius: 999px;
+    gap: 4px;
+}
 .stTabs [data-baseweb="tab"] {
-    background: #f0f2f8;
+    background: transparent !important;
     color: #4a5578 !important;
-    border-radius: 6px 6px 0 0;
+    border-radius: 999px !important;
+    padding: 8px 20px !important;
+    font-weight: 600;
+    border: none !important;
 }
 .stTabs [aria-selected="true"] { background: #0a2463 !important; color: #fff !important; }
+.stTabs [data-baseweb="tab-highlight"] { display: none !important; }
+.stTabs [data-baseweb="tab-border"] { display: none !important; }
+
 .stDataFrame { background: #ffffff; }
 .card-desc { color: #5a6688; font-size: 0.85rem; margin-top: -6px; margin-bottom: 10px; }
+
+/* Multiselect: selected pills (navy bg, white text) + open dropdown menu (white bg, dark text) */
+[data-baseweb="tag"] { background-color: #0a2463 !important; }
+[data-baseweb="tag"] span { color: #ffffff !important; }
+[data-baseweb="popover"] [data-baseweb="menu"] { background: #ffffff !important; }
+[data-baseweb="popover"] [data-baseweb="menu"] li,
+[data-baseweb="popover"] [data-baseweb="menu"] li * { color: #1a1a2e !important; }
+[data-baseweb="select"] { background: #ffffff !important; }
+[data-baseweb="select"] * { color: #1a1a2e !important; }
 </style>
 """,
     unsafe_allow_html=True,
@@ -105,11 +124,15 @@ def load_master() -> pd.DataFrame:
 
 @st.cache_data(ttl=600)
 def load_rollex_ct():
-    if not ROLLEX_CT_PATH.exists():
+    """Prefer the live desk-machine parquet (freshest); fall back to the repo
+    copy the Automator ships, which is what makes this work on Streamlit
+    Cloud (no access to the desk machine's filesystem)."""
+    path = ROLLEX_CT_LIVE_PATH if ROLLEX_CT_LIVE_PATH.exists() else ROLLEX_CT_SNAPSHOT
+    if not path.exists():
         return None
-    rdf = pd.read_parquet(ROLLEX_CT_PATH)
+    rdf = pd.read_parquet(path, columns=["rollex_px"])
     rdf.index = pd.to_datetime(rdf.index)
-    return rdf[["rollex_px"]].rename(columns={"rollex_px": "CT"})
+    return rdf.rename(columns={"rollex_px": "CT"})
 
 
 df = load_master()
@@ -149,7 +172,7 @@ with tab1:
     fig.add_trace(go.Scatter(x=tv.index, y=tv["Sales"], name="Unfixed Sales", line=dict(color=RED, width=2)))
     fig.add_trace(go.Scatter(x=tv.index, y=tv["Purchase"], name="Unfixed Purchases", line=dict(color=GREEN, width=2)))
     fig.add_trace(go.Scatter(x=tv.index, y=tv["OI"], name="Open Interest", line=dict(color=TEAL, width=2), yaxis="y2"))
-    chart_layout(fig, height=440, yaxis2=dict(overlaying="y", side="right", gridcolor="rgba(0,0,0,0)", color="#7fa8b8", title="Open Interest"))
+    chart_layout(fig, height=440, yaxis2=dict(overlaying="y", side="right", gridcolor="rgba(0,0,0,0)", color="#4a5578", title="Open Interest"))
     st.plotly_chart(fig, width='stretch')
 
     st.markdown("<div class='card-desc'>Week-over-week change (net of price-fixing activity).</div>", unsafe_allow_html=True)
@@ -196,7 +219,7 @@ with tab3:
     )
     rollex = load_rollex_ct()
     if rollex is None:
-        st.warning(f"Could not find {ROLLEX_CT_PATH}")
+        st.info("CT Rollex price data isn't available in this environment yet — it ships as a snapshot refreshed by the Automator on the desk machine.")
     else:
         merged = tv.join(rollex, how="inner")
         merged["px_change"] = merged["CT"].diff()
@@ -205,16 +228,17 @@ with tab3:
         fig5 = go.Figure()
         fig5.add_trace(go.Scatter(x=merged.index, y=merged["CT"], name="CT price (rollex_px)", line=dict(color=AMBER, width=2)))
         fig5.add_trace(go.Bar(x=merged.index, y=merged["OI Change"], name="OI Change (On-Call)", marker_color=TEAL, yaxis="y2", opacity=0.6))
-        chart_layout(fig5, height=400, yaxis2=dict(overlaying="y", side="right", gridcolor="rgba(0,0,0,0)", color="#7fa8b8", title="OI Change"))
+        chart_layout(fig5, height=400, yaxis2=dict(overlaying="y", side="right", gridcolor="rgba(0,0,0,0)", color="#4a5578", title="OI Change"))
         st.plotly_chart(fig5, width='stretch')
 
         corr_cols = st.columns(3)
         for col, tag, label in zip(corr_cols, ["S Change", "P Change", "OI Change"], ["Sales chg", "Purchases chg", "OI chg"]):
             r = merged["px_change"].corr(merged[tag])
             col.markdown(
-                f"<div style='background:rgba(13,28,42,.75);border-radius:8px;padding:10px 14px;'>"
-                f"<div style='font-size:11px;color:#5e8fa0;text-transform:uppercase;'>corr(price chg, {label})</div>"
-                f"<div style='font-size:22px;font-weight:700;color:#e8f4f8;'>{r:+.2f}</div></div>",
+                f"<div style='background:#ffffff;border-radius:8px;padding:10px 14px;"
+                f"box-shadow:0 1px 3px rgba(10,36,99,0.08);'>"
+                f"<div style='font-size:11px;color:#7a86a8;text-transform:uppercase;'>corr(price chg, {label})</div>"
+                f"<div style='font-size:22px;font-weight:700;color:#0a2463;'>{r:+.2f}</div></div>",
                 unsafe_allow_html=True,
             )
 
@@ -234,9 +258,4 @@ with tab4:
         for issue in issues:
             st.markdown(f"<div style='color:{AMBER};padding:4px 0;'>&#9888; {issue}</div>", unsafe_allow_html=True)
 
-    kpi_row([
-        ("Total rows", f"{len(df):,}", "", TEAL),
-        ("Unique report dates", f"{totals_wide.shape[0]:,}", "", TEAL),
-        ("History start", totals_wide.index.min().strftime("%Y-%m-%d"), "", TEAL),
-        ("History end", totals_wide.index.max().strftime("%Y-%m-%d"), "", TEAL),
-    ])
+    st.caption(f"{len(df):,} rows · {totals_wide.shape[0]:,} report dates · {totals_wide.index.min().strftime('%Y-%m-%d')} to {totals_wide.index.max().strftime('%Y-%m-%d')}")

@@ -27,7 +27,7 @@ if %ERRORLEVEL% NEQ 0 (
 :: Step 2 - Push updated database to GitHub
 echo [2] Pushing to GitHub... >> %LOG%
 cd /d "%REPO%"
-git add "Database\Cotton_On_Call_Database.csv" >> %LOG% 2>&1
+git add "Database\Cotton_On_Call_Database.csv" "Database\rollex_CT.parquet" >> %LOG% 2>&1
 git diff --cached --quiet
 if %ERRORLEVEL% NEQ 0 (
     git commit -m "Auto update: Cotton On-Call %date%" >> %LOG% 2>&1
