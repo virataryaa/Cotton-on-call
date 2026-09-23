@@ -133,6 +133,8 @@ def load_master() -> pd.DataFrame:
     else:
         return pd.DataFrame(columns=COLUMNS)
     df["Tag"] = df["Tag"].replace(TAG_FIXUPS)
+    # legacy rows in Old Database.csv have thousands-separator commas baked into Value as text
+    df["Value"] = pd.to_numeric(df["Value"].astype(str).str.replace(",", "", regex=False), errors="coerce").fillna(0).astype(int)
     return df
 
 
@@ -176,6 +178,42 @@ def update(rebuild: bool = False) -> pd.DataFrame:
     return master
 
 
+def health_check(df: pd.DataFrame) -> list[str]:
+    """Return a list of human-readable data-quality issues, empty if clean."""
+    issues = []
+    if df.empty:
+        return ["Master database is empty."]
+
+    dates = sorted(pd.to_datetime(df["Date"].unique(), format="%m/%d/%Y"))
+    last = dates[-1].date()
+    stale_days = (datetime.today().date() - last).days
+    if stale_days > 10:
+        issues.append(f"Latest as-of date is {last} - {stale_days} days old (report is weekly, expect <=10).")
+
+    gaps = []
+    for prev, cur in zip(dates, dates[1:]):
+        gap = (cur - prev).days
+        if gap > 10:
+            gaps.append(f"{prev.date()} -> {cur.date()} ({gap}d)")
+    if gaps:
+        issues.append(f"{len(gaps)} gap(s) wider than 10 days: " + "; ".join(gaps[:5]) + (" ..." if len(gaps) > 5 else ""))
+
+    dupes = df.duplicated(subset=["Date", "Fut", "Tag"]).sum()
+    if dupes:
+        issues.append(f"{dupes} duplicate (Date, Fut, Tag) row(s).")
+
+    non_numeric = pd.to_numeric(df["Value"].astype(str).str.replace(",", "", regex=False), errors="coerce").isna().sum()
+    if non_numeric:
+        issues.append(f"{non_numeric} row(s) with non-numeric Value.")
+
+    dates_with_totals = set(pd.to_datetime(df.loc[df["Fut"] == "Totals", "Date"], format="%m/%d/%Y"))
+    missing_totals = [d.date() for d in dates if d not in dates_with_totals]
+    if missing_totals:
+        issues.append(f"{len(missing_totals)} report date(s) missing a Totals row: {missing_totals[:5]}")
+
+    return issues
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--rebuild", action="store_true", help="rebuild master from Old Database.csv + full site history")
@@ -187,6 +225,18 @@ def main():
     DB_DIR.mkdir(parents=True, exist_ok=True)
     master.to_csv(MASTER_CSV, index=False)
     print(f"Master database written: {MASTER_CSV} ({len(master)} rows)")
+
+    if master.empty:
+        print("Master database is empty after update - treating as a failure.", file=sys.stderr)
+        sys.exit(1)
+
+    issues = health_check(master)
+    if issues:
+        print("Data health issues found (non-fatal, reported in notify email):")
+        for issue in issues:
+            print(f"  ! {issue}")
+    else:
+        print("Data health check: OK")
 
 
 if __name__ == "__main__":
