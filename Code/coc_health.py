@@ -6,6 +6,7 @@ the Streamlit dashboard without pulling in scraper dependencies.
 
 from __future__ import annotations
 
+import re
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -41,6 +42,22 @@ def refresh_rollex_ct_snapshot() -> bool:
 COLUMNS = ["Date", "Fut", "Tag", "Value", "month", "year"]
 TAG_FIXUPS = {"S change": "S Change"}
 
+_FOUR_DIGIT_FUT = re.compile(r"^([A-Za-z]+)\s+(\d{4})$")
+
+
+def _normalize_fut_label(label: str) -> str:
+    """The legacy database uses a 2-digit contract year ("December 26"); the
+    live CFTC report pages render a 4-digit year ("December  2026"). Left
+    unnormalized, the same contract month ends up split across two different
+    Fut labels right at the point ingestion started, fragmenting its history.
+    Cotton futures never trade more than ~2-3 years out, so a 2-digit year is
+    unambiguous over this dataset's ~20+ year span - collapse to that."""
+    m = _FOUR_DIGIT_FUT.match(label)
+    if not m:
+        return label
+    month_name, year = m.groups()
+    return f"{month_name} {year[-2:]}"
+
 
 def load_master() -> pd.DataFrame:
     if MASTER_CSV.exists():
@@ -50,6 +67,7 @@ def load_master() -> pd.DataFrame:
     else:
         return pd.DataFrame(columns=COLUMNS)
     df["Tag"] = df["Tag"].replace(TAG_FIXUPS)
+    df["Fut"] = df["Fut"].apply(_normalize_fut_label)
     # legacy rows in Old Database.csv have thousands-separator commas baked into Value as text
     df["Value"] = pd.to_numeric(df["Value"].astype(str).str.replace(",", "", regex=False), errors="coerce").fillna(0).astype(int)
     return df

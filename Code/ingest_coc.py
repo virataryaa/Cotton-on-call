@@ -32,6 +32,7 @@ from coc_health import (  # noqa: E402
     DB_DIR,
     MASTER_CSV,
     OLD_CSV,
+    _normalize_fut_label,
     health_check,
     latest_date,
     load_master,
@@ -100,7 +101,7 @@ def parse_report(url: str) -> tuple[datetime.date, list[tuple]]:
         th = tr.find("th", attrs={"axis": ["date", "total"]})
         if not th:
             continue
-        fut_label = " ".join(th.get_text(strip=True).split())
+        fut_label = _normalize_fut_label(" ".join(th.get_text(strip=True).split()))
         tds = tr.find_all("td")
         if len(tds) < 6:
             continue
