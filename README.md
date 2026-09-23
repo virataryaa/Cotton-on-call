@@ -3,7 +3,13 @@
 Tracks the CFTC weekly Cotton On-Call (COC) report: unfixed-price call cotton
 sales and purchases, and open ICE futures interest, by contract month.
 
-- Source: https://www.cftc.gov/MarketReports/CottonOnCall/HistoricalCottonOn-Call/index.htm
+- Source: two CFTC pages, both checked every run:
+  - https://www.cftc.gov/MarketReports/CottonOnCall/index.htm — the newest report,
+    published here first.
+  - https://www.cftc.gov/MarketReports/CottonOnCall/HistoricalCottonOn-Call/index.htm —
+    the archive, which the newest report only moves into some time later (CFTC has
+    taken over a week to archive a report before). Checking the current-report page
+    too means a Friday-morning run doesn't have to wait for the archive to catch up.
 - Release: Thursdays ~3:30pm ET, data as-of the previous Friday (may be delayed by federal holidays).
 
 ## Folders
