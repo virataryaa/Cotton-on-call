@@ -15,7 +15,7 @@ DB_DIR = REPO_DIR / "Database"
 MASTER_CSV = DB_DIR / "Cotton_On_Call_Database.csv"
 
 sys.path.insert(0, str(REPO_DIR / "Code"))
-from coc_health import ROLLEX_CT_LIVE_PATH, ROLLEX_CT_SNAPSHOT, fut_active_sort_key  # noqa: E402
+from coc_health import ROLLEX_CT_LIVE_PATH, ROLLEX_CT_SNAPSHOT, fut_active_sort_key, fut_expiry_date  # noqa: E402
 
 NAVY = "#0a2463"
 TEAL = "#1f8a9c"
@@ -200,6 +200,17 @@ def load_rollex_ct_full():
     return rdf
 
 
+def price_asof(col: str, dates) -> pd.Series:
+    """Align a Rollex price column to On-Call report dates using the last
+    available trading price at or before each date, not an exact-date match.
+    A plain .reindex() left real gaps in the price line on every date a
+    report's Friday as-of date landed on a market holiday (Good Friday,
+    Christmas Eve, New Year's Eve, Juneteenth) - the futures market was
+    simply closed that day, so there's no row for it, but the last traded
+    price is still the right value to show/join against."""
+    return rollex_full[col].asof(dates)
+
+
 df = load_master()
 totals = df[df["Fut"] == "Totals"].copy()
 totals_wide = totals.pivot_table(index="DateDT", columns="Tag", values="Value", aggfunc="last").sort_index()
@@ -285,7 +296,7 @@ with tab1:
     fig.add_trace(go.Scatter(x=tv.index, y=tv["OI"], name="Open Interest", line=dict(color="#000000", width=1.6, dash="dot"), visible="legendonly"))
     yaxis2 = dict(overlaying="y", side="right", gridcolor="rgba(0,0,0,0)", color="#4a5578")
     if leg_label_t1 is not None:
-        px = smooth(rollex_full[LEG_OPTIONS[leg_label_t1]].reindex(tv.index), roll_window)
+        px = smooth(price_asof(LEG_OPTIONS[leg_label_t1], tv.index), roll_window)
         fig.add_trace(go.Scatter(x=tv.index, y=px, name=f"CT price ({leg_label_t1})", line=dict(color=AMBER, width=2), yaxis="y2"))
         yaxis2["title"] = "Price (Right Axis)"
     chart_layout(fig, height=440, yaxis2=yaxis2)
@@ -306,9 +317,36 @@ with tab1:
     chart_layout(fig_ratio, height=320, yaxis=dict(title="%", hoverformat=".1f"))
     st.plotly_chart(fig_ratio, width='stretch')
 
+def seasonality_bands_fig(long_df: pd.DataFrame, x_col: str, val_col: str, xaxis_title: str, yaxis_title: str, current_year: int, last_year: int, reversed_x: bool = False):
+    """Shared band+average+current/last-year plot. long_df has one row per
+    (x_col, value, yr) observation - already smoothed per series."""
+    band = long_df.groupby(x_col)[val_col].agg(
+        lo="min", p10=lambda s: s.quantile(0.10), p25=lambda s: s.quantile(0.25),
+        avg="mean", p75=lambda s: s.quantile(0.75), p90=lambda s: s.quantile(0.90), hi="max",
+    ).sort_index()
+
+    fig = go.Figure()
+    band_pairs = [("lo", "hi", "rgba(31,138,156,0.08)", "Min–Max"), ("p10", "p90", "rgba(31,138,156,0.16)", "10th–90th pct"), ("p25", "p75", "rgba(31,138,156,0.28)", "25th–75th pct")]
+    for lo_col, hi_col, color, name in band_pairs:
+        fig.add_trace(go.Scatter(x=band.index, y=band[hi_col], line=dict(width=0), showlegend=False, hoverinfo="skip"))
+        fig.add_trace(go.Scatter(x=band.index, y=band[lo_col], fill="tonexty", fillcolor=color, line=dict(width=0), name=name))
+    fig.add_trace(go.Scatter(x=band.index, y=band["avg"], mode="lines", name="Average", line=dict(color="#4a5578", width=1.5, dash="dot")))
+
+    for yr, color, width in [(last_year, RED, 2), (current_year, NAVY, 3)]:
+        grp = long_df[long_df["yr"] == yr].sort_values(x_col)
+        if grp.empty:
+            continue
+        fig.add_trace(go.Scatter(x=grp[x_col], y=grp[val_col], mode="lines", name=str(yr), line=dict(color=color, width=width)))
+
+    xaxis = dict(title=xaxis_title, hoverformat=".0f")
+    if reversed_x:
+        xaxis["autorange"] = "reversed"
+    chart_layout(fig, height=460, xaxis=xaxis, yaxis=dict(title=yaxis_title))
+    return fig
+
+
 # ── TAB: SEASONALITY ─────────────────────────────────────────────────────────
 with tab_season:
-    st.markdown("<div class='card-desc'>Weekly pattern by year. Bands = history range; current year bold, last year red.</div>", unsafe_allow_html=True)
     c1, c2 = st.columns(2)
     metric_options = {"Unfixed Sales": "Sales", "Unfixed Purchases": "Purchase", "Open Interest": "OI", "Net (Sales − Purchases)": "__net__"}
     metric_label = c1.selectbox("Metric", list(metric_options.keys()))
@@ -316,42 +354,33 @@ with tab_season:
     fut_group_options = ["All", "December", "March", "May", "July", "October"]
     fut_group = c2.selectbox("Contract month group", fut_group_options, index=0)
 
+    current_year, last_year = latest_date.year, latest_date.year - 1
+
     if fut_group == "All":
-        season_src = totals_wide.copy()
+        st.markdown("<div class='card-desc'>Weekly pattern by calendar year. Bands = history range; current year bold, last year red.</div>", unsafe_allow_html=True)
+        season_df = totals_wide.copy()
+        if metric_key == "__net__":
+            season_df["__net__"] = season_df.get("Sales", 0) - season_df.get("Purchase", 0)
+        season_df[metric_key] = smooth(season_df[metric_key], roll_window)
+        season_df["x"] = season_df.index.isocalendar().week.astype(int)
+        season_df["yr"] = season_df.index.year
+        fig_season = seasonality_bands_fig(season_df, "x", metric_key, "Week of year", metric_label, current_year, last_year)
     else:
-        fsub = df[(df["Fut"] != "Totals") & (df["Fut"].str.startswith(fut_group))]
-        season_src = fsub.pivot_table(index="DateDT", columns="Tag", values="Value", aggfunc="sum").sort_index()
+        st.markdown(f"<div class='card-desc'>{fut_group} contracts only, aligned by weeks to expiry (not calendar week) so each contract's build-up/roll-off lines up regardless of year. Bands = history across all {fut_group} contracts.</div>", unsafe_allow_html=True)
+        fsub = df[(df["Fut"] != "Totals") & (df["Fut"].str.startswith(fut_group))].copy()
+        if metric_key == "__net__":
+            piv = fsub.pivot_table(index=["Fut", "DateDT"], columns="Tag", values="Value", aggfunc="last")
+            piv["__net__"] = piv.get("Sales", 0) - piv.get("Purchase", 0)
+            long_df = piv.reset_index()
+        else:
+            long_df = fsub[fsub["Tag"] == metric_key][["Fut", "DateDT", "Value"]].rename(columns={"Value": metric_key})
+        long_df["expiry"] = long_df["Fut"].apply(fut_expiry_date)
+        long_df["x"] = ((long_df["expiry"] - long_df["DateDT"]).dt.days / 7).round().astype(int)
+        long_df["yr"] = long_df["expiry"].dt.year
+        long_df = long_df.sort_values(["Fut", "DateDT"])
+        long_df[metric_key] = long_df.groupby("Fut")[metric_key].transform(lambda s: smooth(s, roll_window))
+        fig_season = seasonality_bands_fig(long_df, "x", metric_key, "Weeks to expiry", metric_label, current_year, last_year, reversed_x=True)
 
-    season_df = season_src.copy()
-    if metric_key == "__net__":
-        season_df["__net__"] = season_df.get("Sales", 0) - season_df.get("Purchase", 0)
-    season_df[metric_key] = smooth(season_df[metric_key], roll_window)
-    season_df["woy"] = season_df.index.isocalendar().week.astype(int)
-    season_df["yr"] = season_df.index.year
-
-    band = season_df.groupby("woy")[metric_key].agg(
-        lo="min", p10=lambda s: s.quantile(0.10), p25=lambda s: s.quantile(0.25),
-        avg="mean", p75=lambda s: s.quantile(0.75), p90=lambda s: s.quantile(0.90), hi="max",
-    ).sort_index()
-
-    current_year = season_df["yr"].max()
-    last_year = current_year - 1
-
-    fig_season = go.Figure()
-    # nested bands, widest/lightest first so inner bands draw on top
-    band_pairs = [("lo", "hi", "rgba(31,138,156,0.08)", "Min–Max"), ("p10", "p90", "rgba(31,138,156,0.16)", "10th–90th pct"), ("p25", "p75", "rgba(31,138,156,0.28)", "25th–75th pct")]
-    for lo_col, hi_col, color, name in band_pairs:
-        fig_season.add_trace(go.Scatter(x=band.index, y=band[hi_col], line=dict(width=0), showlegend=False, hoverinfo="skip"))
-        fig_season.add_trace(go.Scatter(x=band.index, y=band[lo_col], fill="tonexty", fillcolor=color, line=dict(width=0), name=name))
-    fig_season.add_trace(go.Scatter(x=band.index, y=band["avg"], mode="lines", name="Average", line=dict(color="#4a5578", width=1.5, dash="dot")))
-
-    for yr, color, width, dash in [(last_year, RED, 2, None), (current_year, NAVY, 3, None)]:
-        grp = season_df[season_df["yr"] == yr].sort_values("woy")
-        if grp.empty:
-            continue
-        fig_season.add_trace(go.Scatter(x=grp["woy"], y=grp[metric_key], mode="lines", name=str(yr), line=dict(color=color, width=width, dash=dash)))
-
-    chart_layout(fig_season, height=460, xaxis=dict(title="Week of year", hoverformat=".0f"), yaxis=dict(title=metric_label))
     st.plotly_chart(fig_season, width='stretch')
 
 # ── TAB 2: BY CONTRACT MONTH ─────────────────────────────────────────────────
@@ -427,9 +456,8 @@ with tab3:
         metric_label2 = c2.selectbox("Correlate with", list(metric_choices.keys()), index=2)
         level_col, change_col = metric_choices[metric_label2]
 
-        rollex = rollex_full[[LEG_OPTIONS[leg_label]]].rename(columns={LEG_OPTIONS[leg_label]: "CT"})
-        merged = tv.join(rollex, how="inner")
-        merged["CT"] = smooth(merged["CT"], roll_window)
+        merged = tv.copy()
+        merged["CT"] = smooth(price_asof(LEG_OPTIONS[leg_label], tv.index), roll_window)
         merged["px_change"] = merged["CT"].diff()
 
         fig5 = go.Figure()
