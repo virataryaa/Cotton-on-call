@@ -347,12 +347,16 @@ def seasonality_bands_fig(long_df: pd.DataFrame, x_col: str, val_col: str, xaxis
 
 # ── TAB: SEASONALITY ─────────────────────────────────────────────────────────
 with tab_season:
-    c1, c2 = st.columns(2)
     metric_options = {"Unfixed Sales": "Sales", "Unfixed Purchases": "Purchase", "Open Interest": "OI", "Net (Sales − Purchases)": "__net__"}
-    metric_label = c1.selectbox("Metric", list(metric_options.keys()))
-    metric_key = metric_options[metric_label]
     fut_group_options = ["All", "December", "March", "May", "July", "October"]
-    fut_group = c2.selectbox("Contract month group", fut_group_options, index=0)
+    # Read the group choice from session state first so the third column (weeks input)
+    # can be shown only when a specific contract month is selected.
+    _fg = st.session_state.get("season_fut_group", "All")
+    c1, c2, c3 = st.columns(3) if _fg != "All" else (*st.columns(2), None)
+    metric_label = c1.selectbox("Metric", list(metric_options.keys()), key="season_metric")
+    metric_key = metric_options[metric_label]
+    fut_group = c2.selectbox("Contract month group", fut_group_options, index=0, key="season_fut_group")
+    max_wte = c3.number_input("Weeks to expiry (max)", min_value=10, max_value=400, value=104, step=13) if c3 is not None else None
 
     current_year, last_year = latest_date.year, latest_date.year - 1
 
@@ -366,7 +370,7 @@ with tab_season:
         season_df["yr"] = season_df.index.year
         fig_season = seasonality_bands_fig(season_df, "x", metric_key, "Week of year", metric_label, current_year, last_year)
     else:
-        st.markdown(f"<div class='card-desc'>{fut_group} contracts only, aligned by weeks to expiry (not calendar week) so each contract's build-up/roll-off lines up regardless of year. Bands = history across all {fut_group} contracts.</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='card-desc'>{fut_group} contracts, by weeks to expiry. Bands = all past {fut_group} contracts.</div>", unsafe_allow_html=True)
         fsub = df[(df["Fut"] != "Totals") & (df["Fut"].str.startswith(fut_group))].copy()
         if metric_key == "__net__":
             piv = fsub.pivot_table(index=["Fut", "DateDT"], columns="Tag", values="Value", aggfunc="last")
@@ -377,6 +381,7 @@ with tab_season:
         long_df["expiry"] = long_df["Fut"].apply(fut_expiry_date)
         long_df["x"] = ((long_df["expiry"] - long_df["DateDT"]).dt.days / 7).round().astype(int)
         long_df["yr"] = long_df["expiry"].dt.year
+        long_df = long_df[long_df["x"] <= max_wte]
         long_df = long_df.sort_values(["Fut", "DateDT"])
         long_df[metric_key] = long_df.groupby("Fut")[metric_key].transform(lambda s: smooth(s, roll_window))
         fig_season = seasonality_bands_fig(long_df, "x", metric_key, "Weeks to expiry", metric_label, current_year, last_year, reversed_x=True)
